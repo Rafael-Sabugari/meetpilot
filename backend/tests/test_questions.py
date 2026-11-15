@@ -73,13 +73,30 @@ class TestPolicy:
         p = AutoAnswerPolicy()
         assert p.offer("Você pode explicar?", now=0)
 
-    def test_coalesces_while_busy_and_runs_newest_next(self) -> None:
+    def test_questions_asked_while_busy_are_all_answered_in_order(self) -> None:
         p = AutoAnswerPolicy(min_interval=0)
         assert p.offer("Pergunta A sobre o plano?", now=0)
         assert not p.offer("Pergunta B sobre o prazo?", now=1)
         assert not p.offer("Pergunta C sobre o custo?", now=2)
-        assert p.finished(now=3) == "Pergunta C sobre o custo?"
+        assert p.finished(now=3) == "Pergunta B sobre o prazo?"
+        assert p.finished(now=4) == "Pergunta C sobre o custo?"
         assert p.finished(now=5) is None
+
+    def test_waiting_queue_is_short_and_drops_the_oldest(self) -> None:
+        p = AutoAnswerPolicy(min_interval=0, max_waiting=2)
+        assert p.offer("Pergunta A sobre o plano?", now=0)
+        for i, q in enumerate(["B sobre prazo?", "C sobre custo?", "D sobre equipe?"]):
+            p.offer(f"Pergunta {q}", now=1 + i)
+        assert p.finished(now=5) == "Pergunta C sobre custo?"
+        assert p.finished(now=6) == "Pergunta D sobre equipe?"
+
+    def test_a_question_waiting_in_line_is_not_queued_twice(self) -> None:
+        p = AutoAnswerPolicy(min_interval=0)
+        assert p.offer("Pergunta A sobre o plano?", now=0)
+        assert not p.offer("Pergunta B sobre o prazo?", now=1)
+        assert not p.offer("pergunta b sobre o prazo", now=2)
+        assert p.finished(now=3) == "Pergunta B sobre o prazo?"
+        assert p.finished(now=4) is None
 
     def test_duplicates_are_skipped(self) -> None:
         p = AutoAnswerPolicy(min_interval=0)
@@ -110,3 +127,56 @@ class TestPolicy:
                 started += 1
                 p.finished(now=i + 0.5)
         assert started == 3
+
+
+# -- lines worth an AI check -----------------------------------------------------------
+
+from app.ai.context import ContextSegment  # noqa: E402
+from app.ai.question_check import build_input as check_input  # noqa: E402
+from app.ai.questions import worth_checking  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "E o prazo da integração, como fica",  # no "?" from the STT
+        "Rafael quanto tempo você trabalhou com isso",
+        "how did you handle the migration",
+        "Qual é o prazo para a entrega do módulo?",  # question, target unclear
+    ],
+)
+def test_unsettled_lines_are_worth_an_ai_check(text: str) -> None:
+    assert worth_checking(text, assess(text), "directed")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Bom dia a todos, vamos começar a reunião.",
+        "Precisamos fechar os testes até sexta-feira.",
+        "Certo?",
+        "ok",
+        "Você pode explicar como funciona a integração?",  # rules already settled it
+    ],
+)
+def test_clear_lines_are_not_checked(text: str) -> None:
+    assert not worth_checking(text, assess(text), "directed")
+
+
+def test_nothing_is_checked_when_suggestions_are_off() -> None:
+    t = "E o prazo, como fica"
+    assert not worth_checking(t, assess(t), "off")
+    q = "Qual é o prazo para a entrega do módulo?"
+    assert not worth_checking(q, assess(q), "all"), "all mode answers it without a check"
+
+
+def test_check_input_has_recent_lines_and_short_user_context() -> None:
+    segs = [
+        ContextSegment(source="system" if i % 2 else "microphone", text=f"linha {i}", start_ms=i)
+        for i in range(20)
+    ]
+    text = check_input(segs, "Sou o Rafael. " + "x" * 2000)
+    body = text.split("<transcript>\n")[1]
+    assert body.splitlines()[0] == "User: linha 12" and "Others: linha 19" in body
+    assert body.count("\n") == 8  # exactly the last 8 lines
+    assert "Sou o Rafael." in text and len(text.split("</user_context>")[0]) < 700

@@ -107,7 +107,9 @@ never invents your experience or credentials (it uses `[placeholders]` instead).
 
 **Automatic suggestions** (default: only questions asked to you) and **Translate transcript
 to** are next to the transcription switch and can be changed during the meeting. Each
-automatic suggestion counts as one copilot question.
+automatic suggestion counts as one copilot question. Write about yourself and the meeting in
+**My context** (kept only on your computer) and suggestions use it instead of leaving
+`[blanks]`.
 
 ## Checks
 

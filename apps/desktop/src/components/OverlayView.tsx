@@ -57,7 +57,7 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
             <button
               className="btn btn--small"
               disabled={copilot.pending}
-              onClick={() => copilot.ask("reply", null, prefs.tone, transcript.state)}
+              onClick={() => copilot.ask("reply", null, prefs.tone, transcript.state, prefs.userContext)}
             >
               💬 {t("copilot.reply")}
             </button>

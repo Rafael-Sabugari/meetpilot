@@ -2,6 +2,15 @@
 
 Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
 
+## ✅ Completed — Every question to you + "Meu contexto"
+
+- ✅ Two-stage detection: rules + Claude check for unclear lines (no "?", no "você", unclear target), last 8 lines + user context, ≤ 30/min, metered as `question_check`
+- ✅ Answer queue: questions asked while an answer is being written are all answered in order (FIFO of 3, stale after 20 s); defaults 3 s apart, ≤ 10/min
+- ✅ "Meu contexto" card (desktop, local only), sent with live settings and manual questions; new grounding label "Do seu contexto"; validated/trimmed in Rust and server (≤ 4000 chars)
+- ✅ Tests: backend 141, Rust 46 (+cross Windows/macOS clippy), frontend 61
+- ✅ Real Claude run: hard cases (no "?", by name, English request, statement, question to someone else) classified correctly for the user; e2e in the app: 4/4 questions answered, answers use the context ("2 anos de Kubernetes", "API Pix, mTLS"), DB/logs contain none of the context
+- Known limitation: in "All questions" mode a request addressed to someone else by name may be classified as not a question.
+
 ## ✅ Completed — Claude as the AI provider + real-key run
 
 - ✅ Anthropic (Claude) LLM adapter, default model **Claude Haiku 5.5** (cheapest; owner's choice); config, factory, production guard; 13 new tests

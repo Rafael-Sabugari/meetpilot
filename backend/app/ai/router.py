@@ -30,6 +30,8 @@ class CopilotRequest(BaseModel):
     tone: Tone = "natural"
     # Answer language; defaults to the meeting language.
     language: Literal["pt-BR", "en"] | None = None
+    # Written by the user about themselves and the meeting; used for this answer only.
+    user_context: str | None = Field(default=None, max_length=4_000)
 
     @model_validator(mode="after")
     def _question_for_ask(self) -> "CopilotRequest":
@@ -89,6 +91,7 @@ async def copilot(
             meeting_language=meeting.language,
             tone=body.tone,
             max_output_tokens=settings.copilot_max_output_tokens,
+            user_context=body.user_context,
         )
     except LLMError as e:
         code = status.HTTP_503_SERVICE_UNAVAILABLE if e.retryable else status.HTTP_502_BAD_GATEWAY

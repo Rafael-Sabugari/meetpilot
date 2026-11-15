@@ -196,7 +196,7 @@ pub enum TranslateTo {
 
 /// Live assistance during a transcribed meeting. Validated here so the server only ever
 /// receives known values; serialized in the gateway's `copilot.settings` shape.
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveOptions {
     #[serde(rename(serialize = "auto_suggestions"))]
@@ -204,11 +204,28 @@ pub struct LiveOptions {
     pub tone: Tone,
     #[serde(rename(serialize = "translate_to"))]
     pub translate_to: Option<TranslateTo>,
+    /// "My context": written by the user, kept on this computer, sent only while a meeting
+    /// is transcribed. Never logged.
+    #[serde(default, rename(serialize = "user_context"))]
+    pub user_context: Option<String>,
+}
+
+/// Same limit as the server (`LiveSettings.user_context`).
+pub const MAX_USER_CONTEXT_CHARS: usize = 4_000;
+
+pub fn clean_user_context(v: Option<&str>) -> Option<String> {
+    let t = v?.trim();
+    if t.is_empty() {
+        return None;
+    }
+    Some(t.chars().take(MAX_USER_CONTEXT_CHARS).collect())
 }
 
 impl LiveOptions {
-    pub fn to_server(self) -> serde_json::Value {
-        serde_json::to_value(self).unwrap_or_default()
+    pub fn to_server(&self) -> serde_json::Value {
+        let mut clean = self.clone();
+        clean.user_context = clean_user_context(self.user_context.as_deref());
+        serde_json::to_value(clean).unwrap_or_default()
     }
 }
 
@@ -395,7 +412,7 @@ pub async fn start_capture(
     let uplink = match &request.transcription {
         Some(t) => {
             let u = open_uplink(&app, &t.language).await?;
-            if let Some(live) = t.live {
+            if let Some(live) = &t.live {
                 u.handle.set_settings(live.to_server());
             }
             Some(u)
@@ -622,8 +639,22 @@ mod tests {
         .unwrap();
         assert_eq!(
             o.to_server(),
-            serde_json::json!({"auto_suggestions":"directed","tone":"formal","translate_to":"en"})
+            serde_json::json!({"auto_suggestions":"directed","tone":"formal","translate_to":"en","user_context":null})
         );
+        assert!(
+            o.to_server()["user_context"].is_null(),
+            "context is optional"
+        );
+        let with_ctx: LiveOptions = serde_json::from_str(&format!(
+            r#"{{"autoSuggestions":"all","tone":"natural","translateTo":null,"userContext":"  Sou o Rafael {}  "}}"#,
+            "x".repeat(5000)
+        ))
+        .unwrap();
+        let sent = with_ctx.to_server();
+        let ctx = sent["user_context"].as_str().unwrap();
+        assert!(ctx.starts_with("Sou o Rafael"));
+        assert_eq!(ctx.chars().count(), MAX_USER_CONTEXT_CHARS);
+        assert_eq!(clean_user_context(Some("   ")), None);
         let none: LiveOptions = serde_json::from_str(
             r#"{"autoSuggestions":"off","tone":"natural","translateTo":null}"#,
         )

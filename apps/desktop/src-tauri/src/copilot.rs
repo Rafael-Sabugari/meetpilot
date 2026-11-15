@@ -29,6 +29,8 @@ pub struct AskRequest {
     pub tone: String,
     #[serde(default)]
     pub language: Option<String>,
+    #[serde(default)]
+    pub user_context: Option<String>,
 }
 
 fn default_tone() -> String {
@@ -98,6 +100,7 @@ pub async fn ask_copilot(
         transcript: trim_transcript(request.transcript.clone()),
         tone: request.tone.clone(),
         language: request.language.clone(),
+        user_context: crate::capture::clean_user_context(request.user_context.as_deref()),
     };
     match client.copilot(&access, &meeting_id, &body).await {
         Ok(answer) => {
@@ -148,6 +151,9 @@ mod tests {
 
     #[test]
     fn ask_request_defaults() {
+        let with_ctx: AskRequest =
+            serde_json::from_str(r#"{"mode":"reply","userContext":"Sou o Rafael"}"#).unwrap();
+        assert_eq!(with_ctx.user_context.as_deref(), Some("Sou o Rafael"));
         let r: AskRequest = serde_json::from_str(r#"{"mode":"reply"}"#).unwrap();
         assert_eq!(r.tone, "natural");
         assert!(r.transcript.is_empty() && r.question.is_none());

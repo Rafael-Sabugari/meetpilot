@@ -10,7 +10,12 @@ type T = (k: MessageKey) => string;
 const TONES: CopilotTone[] = ["natural", "concise", "technical", "formal"];
 
 export function GroundingBadge({ t, grounding }: { t: T; grounding: Grounding }) {
-  const tone = grounding === "needs_confirmation" ? "warn" : grounding === "from_conversation" ? "ok" : "muted";
+  const tone =
+    grounding === "needs_confirmation"
+      ? "warn"
+      : grounding === "from_conversation" || grounding === "from_user_context"
+        ? "ok"
+        : "muted";
   return (
     <span className={`pill pill--${tone}`} data-testid="grounding">
       {t(`copilot.grounding.${grounding}` as MessageKey)}
@@ -70,8 +75,9 @@ export function CopilotPanel(props: {
   /** Shared with automatic suggestions, so it lives in the parent. */
   tone: CopilotTone;
   onToneChange: (tone: CopilotTone) => void;
+  userContext?: string | null;
 }) {
-  const { t, copilot, transcript, enabled, tone, onToneChange: setTone } = props;
+  const { t, copilot, transcript, enabled, tone, onToneChange: setTone, userContext = null } = props;
   const [question, setQuestion] = useState("");
   const [error, setError] = useState<string | null>(null);
   const latest = copilot.state.items.find((i) => i.status === "done")?.answer;
@@ -80,7 +86,7 @@ export function CopilotPanel(props: {
     setError(null);
     const q = mode === "ask" ? question.trim() : null;
     if (mode === "ask" && !q) return;
-    const err = await copilot.ask(mode, q, tone, transcript);
+    const err = await copilot.ask(mode, q, tone, transcript, userContext);
     if (err) setError(err);
     else if (mode === "ask") setQuestion("");
   };

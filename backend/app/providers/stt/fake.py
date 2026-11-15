@@ -22,6 +22,7 @@ SCRIPT: dict[str, dict[str, list[str]]] = {
             "Qual é o prazo para a entrega do módulo?",
             "Precisamos fechar os testes até sexta-feira.",
             "Qual é a sua experiência com Kubernetes?",
+            "E o prazo da integração, como fica",
         ],
         "microphone": [
             "Claro, posso explicar.",
@@ -38,6 +39,7 @@ SCRIPT: dict[str, dict[str, list[str]]] = {
             "What is the deadline for the module?",
             "We need to finish testing by Friday.",
             "What is your experience with Kubernetes?",
+            "And the deadline for the integration, how does that look",
         ],
         "microphone": [
             "Sure, I can explain.",

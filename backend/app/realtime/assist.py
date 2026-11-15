@@ -3,6 +3,8 @@
     final segment ─┬─► rolling context (memory only, this meeting)
                    ├─► translation (if enabled)            ─► translation.updated
                    └─► question detection (others' speech) ─► question.detected
+                            ├─ rules (free)
+                            └─ AI check for lines the rules cannot settle (rate limited)
                             └─► policy (debounce/dedupe/rate) ─► answer.started/completed/failed
 
 Nothing here is stored or logged; only usage counters are reported for metering.
@@ -18,11 +20,12 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from app.ai.context import ContextSegment, build_context
 from app.ai.copilot import Tone, ask
-from app.ai.questions import AutoAnswerPolicy, AutoMode, assess, should_answer
+from app.ai.question_check import check as check_question
+from app.ai.questions import AutoAnswerPolicy, AutoMode, assess, should_answer, worth_checking
 from app.ai.translation import needs_translation, translate
 from app.providers.llm.base import LLMError, LLMProvider, LLMResult
 from app.realtime.events import EventType, TranscriptSegment
@@ -38,6 +41,13 @@ class LiveSettings(BaseModel):
     auto_suggestions: AutoMode = "directed"
     tone: Tone = "natural"
     translate_to: Literal["pt-BR", "en"] | None = None
+    # Written by the user about themselves and the meeting (kept in memory only).
+    user_context: str | None = Field(default=None, max_length=4_000)
+
+    @field_validator("user_context")
+    @classmethod
+    def _blank_is_none(cls, v: str | None) -> str | None:
+        return v.strip() or None if v is not None else None
 
 
 @dataclass
@@ -49,6 +59,8 @@ class UsageItem:
 
 class LiveAssist:
     MAX_TRANSLATION_BACKLOG = 20
+    MAX_CHECKS_PER_MINUTE = 30
+    MAX_CHECKS_IN_FLIGHT = 3
 
     def __init__(
         self,
@@ -84,6 +96,8 @@ class LiveAssist:
         self._translator: asyncio.Task[None] | None = None
         self._backlog_warned = False
         self._quota_warned = False
+        self._checks: deque[float] = deque()
+        self._checks_in_flight = 0
 
     # -- settings -----------------------------------------------------------------------
 
@@ -103,24 +117,59 @@ class LiveAssist:
         if needs_translation(self.meeting_language, self.settings.translate_to):
             self._enqueue_translation(seg)
         if seg.source == "system":
+            mode = self.settings.auto_suggestions
             a = assess(text)
-            if should_answer(a, self.settings.auto_suggestions):
-                # Derived from the segment id, which stays unique across reconnects.
-                qid = f"q-{seg.segment_id}"
-                self._question_ids[text] = qid
-                while len(self._question_ids) > 50:
-                    self._question_ids.pop(next(iter(self._question_ids)))
-                await self.emit(
-                    EventType.QUESTION_DETECTED,
-                    {
-                        "question_id": qid,
-                        "segment_id": seg.segment_id,
-                        "text": text,
-                        "directed": a.directed,
-                    },
-                )
-                if self.policy.offer(text, self.clock()):
-                    self._spawn(self._answer(qid, text))
+            if should_answer(a, mode):
+                await self._detected(seg, text, a.directed, "rules")
+            elif worth_checking(text, a, mode) and self._check_allowed():
+                recent = list(self.context)[-8:]
+                self._spawn(self._check(seg, text, recent))
+
+    async def _detected(self, seg: TranscriptSegment, text: str, directed: bool, via: str) -> None:
+        # Derived from the segment id, which stays unique across reconnects.
+        qid = f"q-{seg.segment_id}"
+        self._question_ids[text] = qid
+        while len(self._question_ids) > 50:
+            self._question_ids.pop(next(iter(self._question_ids)))
+        await self.emit(
+            EventType.QUESTION_DETECTED,
+            {
+                "question_id": qid,
+                "segment_id": seg.segment_id,
+                "text": text,
+                "directed": directed,
+                "via": via,
+            },
+        )
+        if self.policy.offer(text, self.clock()):
+            self._spawn(self._answer(qid, text))
+
+    def _check_allowed(self) -> bool:
+        now = self.clock()
+        while self._checks and now - self._checks[0] > 60:
+            self._checks.popleft()
+        if (
+            len(self._checks) >= self.MAX_CHECKS_PER_MINUTE
+            or self._checks_in_flight >= self.MAX_CHECKS_IN_FLIGHT
+        ):
+            return False
+        self._checks.append(now)
+        return True
+
+    async def _check(self, seg: TranscriptSegment, text: str, recent: list[ContextSegment]) -> None:
+        self._checks_in_flight += 1
+        try:
+            is_q, directed, result = await check_question(
+                self.llm, recent, self.settings.user_context
+            )
+        except LLMError:
+            return  # best effort: a failed check just means no automatic suggestion
+        finally:
+            self._checks_in_flight -= 1
+        self._meter(result, "question_check")
+        mode = self.settings.auto_suggestions
+        if is_q and (mode == "all" or (mode == "directed" and directed)):
+            await self._detected(seg, text, directed, "ai")
 
     async def tick(self) -> None:
         nxt = self.policy.tick(self.clock())
@@ -178,6 +227,7 @@ class LiveAssist:
                     meeting_language=self.meeting_language,
                     tone=self.settings.tone,
                     max_output_tokens=self.max_output_tokens,
+                    user_context=self.settings.user_context,
                 )
             except LLMError as e:
                 self.copilot_remaining += 1  # failed calls are not billed

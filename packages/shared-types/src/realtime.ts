@@ -73,7 +73,7 @@ export type LinkStatus =
 /** Ask-Copilot (POST /api/v1/meetings/{id}/copilot). */
 export type CopilotMode = "ask" | "reply" | "summarize";
 export type CopilotTone = "natural" | "concise" | "technical" | "formal";
-export type Grounding = "from_conversation" | "general_suggestion" | "needs_confirmation";
+export type Grounding = "from_conversation" | "from_user_context" | "general_suggestion" | "needs_confirmation";
 
 export interface CopilotAnswer {
   answer: string;
@@ -92,6 +92,8 @@ export interface LiveOptions {
   autoSuggestions: AutoSuggestions;
   tone: CopilotTone;
   translateTo: TranslateTo | null;
+  /** Written by the user about themselves and the meeting; kept on this computer. */
+  userContext: string | null;
 }
 
 /** `question.detected`: someone else asked a question (directed = aimed at the user). */
@@ -100,6 +102,8 @@ export interface QuestionDetectedPayload {
   segment_id: string;
   text: string;
   directed: boolean;
+  /** "rules" = free heuristic; "ai" = checked by the AI because the rules were unsure. */
+  via?: "rules" | "ai";
 }
 
 export interface AnswerStartedPayload {

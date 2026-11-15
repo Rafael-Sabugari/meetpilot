@@ -54,6 +54,7 @@ export interface AskRequest {
   transcript: { source: "system" | "microphone"; text: string; start_ms: number }[];
   tone: CopilotTone;
   language?: "pt-BR" | "en" | null;
+  userContext?: string | null;
 }
 
 export type AnswerEvent = CopilotAnswer & { id: number; mode: CopilotMode; question: string | null };

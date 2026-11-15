@@ -73,17 +73,29 @@ def test_directed_questions_get_automatic_suggestions(tmp_path: Path) -> None:
         auth = register_and_login(c)
         events = run_meeting(c, auth)
         detected = of(events, "question.detected")
-        assert [d["text"] for d in detected] == [
+        by_text = {d["text"]: d for d in detected}
+        assert set(by_text) == {
             "Você pode explicar como funciona a integração com o banco?",
+            "Qual é o prazo para a entrega do módulo?",
             "Qual é a sua experiência com Kubernetes?",
-        ], "only questions directed at the user (default mode); not 'Certo?' nor general ones"
+        }, "questions asked to the user; not 'Certo?' nor statements"
         assert all(d["directed"] for d in detected)
+        # Clear cases are settled by the rules for free; unclear ones by the AI check.
+        assert by_text["Você pode explicar como funciona a integração com o banco?"]["via"] == (
+            "rules"
+        )
+        assert by_text["Qual é o prazo para a entrega do módulo?"]["via"] == "ai"
         started = of(events, "answer.started")
         completed = of(events, "answer.completed")
-        assert [a["question_id"] for a in completed] == [s["question_id"] for s in started]
-        assert [a["question_id"] for a in completed] == [d["question_id"] for d in detected]
-        assert len({d["question_id"] for d in detected}) == 2
-        assert len(completed) == 2
+        assert sorted(a["question_id"] for a in completed) == sorted(
+            s["question_id"] for s in started
+        )
+        assert sorted(a["question_id"] for a in completed) == sorted(
+            d["question_id"] for d in detected
+        )
+        assert len({d["question_id"] for d in detected}) == 3
+        assert len(completed) == 3
+        completed.sort(key=lambda a: a["question_id"] != detected[0]["question_id"])
         first = completed[0]
         assert first["question"] == detected[0]["text"]
         assert first["answer"] and first["grounding"] in (
@@ -94,7 +106,7 @@ def test_directed_questions_get_automatic_suggestions(tmp_path: Path) -> None:
         # The LLM saw the earlier conversation as context.
         assert "O módulo de pagamentos está quase pronto." in llm.calls[0]["input_text"]
         usage = c.get("/api/v1/usage", headers=auth).json()
-        assert usage["copilot_requests_used"] == 2
+        assert usage["copilot_requests_used"] == 3
         # Answers arrive before the stream is closed.
         types = [e["type"] for e in events]
         assert types.index("answer.completed") < types.index("capture.stopped")
@@ -192,10 +204,11 @@ def test_english_meeting(tmp_path: Path, language: str) -> None:
     with make_client(tmp_path, llm) as c:
         auth = register_and_login(c)
         events = run_meeting(c, auth, language=language)
-        assert [d["text"] for d in of(events, "question.detected")] == [
+        assert {d["text"] for d in of(events, "question.detected")} == {
             "Can you explain how the bank integration works?",
+            "What is the deadline for the module?",
             "What is your experience with Kubernetes?",
-        ]
+        }
         assert "English" in llm.calls[0]["instructions"]
 
 
@@ -216,3 +229,54 @@ def test_deferred_answer_keeps_the_detected_question_id(tmp_path: Path) -> None:
         answered = [a["question_id"] for a in of(events, "answer.completed")]
         assert len(answered) == 1, "rate limit holds the second question"
         assert set(answered) <= detected
+
+
+def test_questions_without_question_mark_are_found_by_the_ai_check(tmp_path: Path) -> None:
+    """STT may drop the "?": "E o prazo da integração, como fica" is still a question."""
+    llm = FakeLLMProvider()
+    with make_client(tmp_path, llm) as c:
+        auth = register_and_login(c)
+        events = run_meeting(c, auth, system_lines=8)
+        found = {d["text"]: d for d in of(events, "question.detected")}
+        assert found["E o prazo da integração, como fica"]["via"] == "ai"
+        checks = [x for x in llm.calls if x["schema_name"] == "question_check"]
+        # Only lines the rules could not settle are checked (not greetings or statements).
+        checked = {x["input_text"].split("</transcript>")[0].splitlines()[-1] for x in checks}
+        assert checked == {
+            "Others: Qual é o prazo para a entrega do módulo?",
+            "Others: E o prazo da integração, como fica",
+        }
+        rows = c.get("/api/v1/usage", headers=auth).json()
+        assert rows["copilot_requests_used"] == 4, "checks do not use the copilot quota"
+
+
+def test_user_context_reaches_answers_and_checks_but_is_not_stored(tmp_path: Path) -> None:
+    llm = FakeLLMProvider()
+    about = "Sou o Rafael, dev backend com 5 anos de Python e 2 de Kubernetes."
+    with make_client(tmp_path, llm) as c:
+        auth = register_and_login(c)
+        events = run_meeting(c, auth, settings={"user_context": about}, system_lines=7)
+        answers = of(events, "answer.completed")
+        assert answers and all(a["grounding"] == "from_user_context" for a in answers)
+        answer_calls = [x for x in llm.calls if x["schema_name"] == "copilot_answer"]
+        assert all(f"<user_context>\n{about}" in x["input_text"] for x in answer_calls)
+        check_calls = [x for x in llm.calls if x["schema_name"] == "question_check"]
+        assert check_calls and all("<user_context>" in x["input_text"] for x in check_calls)
+    db = (tmp_path / "live.db").read_bytes()
+    assert b"Kubernetes" not in db and b"Rafael" not in db, "context is never persisted"
+
+
+def test_user_context_is_limited(tmp_path: Path) -> None:
+    llm = FakeLLMProvider()
+    with make_client(tmp_path, llm) as c:
+        auth = register_and_login(c)
+        events = run_meeting(c, auth, settings={"user_context": "x" * 4_001}, system_lines=1)
+        assert of(events, "error")[0]["code"] == "bad_settings"
+
+
+def test_off_mode_spends_nothing_on_checks(tmp_path: Path) -> None:
+    llm = FakeLLMProvider()
+    with make_client(tmp_path, llm) as c:
+        auth = register_and_login(c)
+        run_meeting(c, auth, settings={"auto_suggestions": "off"}, system_lines=8)
+        assert llm.calls == []

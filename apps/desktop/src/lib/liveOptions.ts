@@ -5,10 +5,13 @@ export interface LivePrefs extends LiveOptions {
   translationView: TranslationView;
 }
 
+export const MAX_USER_CONTEXT = 4000;
+
 export const DEFAULT_LIVE: LivePrefs = {
   autoSuggestions: "directed",
   tone: "natural",
   translateTo: null,
+  userContext: null,
   translationView: "both",
 };
 
@@ -31,6 +34,10 @@ export function parseLivePrefs(raw: string | null): LivePrefs {
     autoSuggestions: pick(v.autoSuggestions, AUTO, DEFAULT_LIVE.autoSuggestions),
     tone: pick(v.tone, TONES, DEFAULT_LIVE.tone),
     translateTo: pick<TranslateTo | null>(v.translateTo, [...TARGETS, null], null),
+    userContext:
+      typeof v.userContext === "string" && v.userContext.trim()
+        ? v.userContext.slice(0, MAX_USER_CONTEXT)
+        : null,
     translationView: pick(v.translationView, VIEWS, DEFAULT_LIVE.translationView),
   };
 }
@@ -53,5 +60,10 @@ export function saveLivePrefs(p: LivePrefs): void {
 
 /** What the server needs (the view mode is local only). */
 export function toLiveOptions(p: LivePrefs): LiveOptions {
-  return { autoSuggestions: p.autoSuggestions, tone: p.tone, translateTo: p.translateTo };
+  return {
+    autoSuggestions: p.autoSuggestions,
+    tone: p.tone,
+    translateTo: p.translateTo,
+    userContext: p.userContext?.trim() ? p.userContext.trim().slice(0, MAX_USER_CONTEXT) : null,
+  };
 }

@@ -9,6 +9,7 @@ import { useTranscript } from "../hooks/useTranscript";
 import { useCopilot } from "../hooks/useCopilot";
 import { CopilotPanel } from "./CopilotPanel";
 import { LiveAssistOptions } from "./LiveAssistOptions";
+import { UserContextCard } from "./UserContextCard";
 import { loadLivePrefs, saveLivePrefs, toLiveOptions, type LivePrefs } from "../lib/liveOptions";
 import { AccountPanel } from "./AccountPanel";
 import { ConsentDialog, hasTranscriptionConsent } from "./ConsentDialog";
@@ -95,7 +96,10 @@ export function MainView({ t }: { t: T }) {
   const transcribing = !!(cap.status as StatusDto | null)?.transcribing;
   const updateLive = (next: LivePrefs) => {
     const serverChanged =
-      next.autoSuggestions !== live.autoSuggestions || next.tone !== live.tone || next.translateTo !== live.translateTo;
+      next.autoSuggestions !== live.autoSuggestions ||
+      next.tone !== live.tone ||
+      next.translateTo !== live.translateTo ||
+      next.userContext !== live.userContext;
     setLive(next);
     saveLivePrefs(next);
     // Mid-meeting changes apply immediately; otherwise they are sent when capture starts.
@@ -278,6 +282,8 @@ export function MainView({ t }: { t: T }) {
           />
         )}
 
+        <UserContextCard t={t} value={live.userContext} onSave={(userContext) => updateLive({ ...live, userContext })} />
+
         {acct.account && (
           <CopilotPanel
             t={t}
@@ -286,6 +292,7 @@ export function MainView({ t }: { t: T }) {
             enabled={copilotEnabled}
             tone={live.tone}
             onToneChange={(tone) => updateLive({ ...live, tone })}
+            userContext={live.userContext}
           />
         )}
 

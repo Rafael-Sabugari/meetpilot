@@ -134,6 +134,77 @@ def assess(text: str) -> Assessment:
     return Assessment(True, second or request, "request" if request else "question")
 
 
+INTERROGATIVE_CUES = (
+    # pt (accents stripped)
+    "como",
+    "qual",
+    "quais",
+    "quando",
+    "onde",
+    "por que",
+    "porque",
+    "pq",
+    "quem",
+    "quanto",
+    "quantos",
+    "quantas",
+    "o que",
+    "sera que",
+    "pode",
+    "poderia",
+    "consegue",
+    "conseguiria",
+    "ja trabalhou",
+    "ja fez",
+    "tem experiencia",
+    "e o",
+    "e a",
+    "e os",
+    "e as",
+    # en
+    "what",
+    "how",
+    "why",
+    "when",
+    "where",
+    "who",
+    "which",
+    "do you",
+    "did you",
+    "have you",
+    "are you",
+    "were you",
+    "can you",
+    "could you",
+    "would you",
+    "will you",
+    "is there",
+    "is it",
+    "any thoughts",
+)
+
+
+def worth_checking(text: str, a: Assessment, mode: AutoMode) -> bool:
+    """Lines the rules could not settle but that may still be a question for the user.
+
+    STT often drops the "?" and people ask without "você"/"you" ("E o prazo, como fica").
+    Such lines get a cheap AI check (`app/ai/question_check.py`) with recent context.
+    """
+    if mode == "off" or a.reason in ("empty", "tag_or_too_short", "too_short"):
+        return False
+    if a.is_question:
+        # Confirmed question; only its target is unclear.
+        return mode == "directed" and not a.directed
+    n = _norm(text)
+    words = n.split()
+    if len(words) < MIN_WORDS:
+        return False
+    padded = f" {n} "
+    cue = any(f" {c} " in padded for c in INTERROGATIVE_CUES)
+    second = bool(SECOND_PERSON.intersection(words))
+    return cue or second
+
+
 def should_answer(a: Assessment, mode: AutoMode) -> bool:
     if mode == "off" or not a.is_question:
         return False
@@ -142,31 +213,38 @@ def should_answer(a: Assessment, mode: AutoMode) -> bool:
 
 @dataclass
 class AutoAnswerPolicy:
-    """Decides whether a detected question triggers an LLM call now.
+    """Decides when a detected question gets its automatic answer.
 
-    * at most one answer in flight; while busy, only the newest question waits (coalescing)
+    * at most one answer in flight; questions asked meanwhile wait in a short FIFO queue
+      (answered in the order they were asked; the oldest is dropped if the queue is full)
     * `min_interval` between answers; `max_per_minute` cap
     * near-duplicate questions (same normalized text) within `dedupe_window` are skipped
+    * a waiting question older than `stale_after` seconds is dropped (the moment has passed)
     """
 
-    min_interval: float = 6.0
-    max_per_minute: int = 6
+    min_interval: float = 3.0
+    max_per_minute: int = 10
     dedupe_window: float = 60.0
     stale_after: float = 20.0
+    max_waiting: int = 3
     _last_started: float = -1e9
     _recent_starts: deque[float] = field(default_factory=deque)
     _seen: deque[tuple[float, str]] = field(default_factory=deque)
     _in_flight: bool = False
-    _waiting: tuple[float, str] | None = None
+    _waiting: deque[tuple[float, str]] = field(default_factory=deque)
 
     def _prune(self, now: float) -> None:
         while self._recent_starts and now - self._recent_starts[0] > 60:
             self._recent_starts.popleft()
         while self._seen and now - self._seen[0][0] > self.dedupe_window:
             self._seen.popleft()
+        while self._waiting and now - self._waiting[0][0] > self.stale_after:
+            self._waiting.popleft()
 
     def _is_duplicate(self, key: str) -> bool:
-        return any(k == key for _, k in self._seen)
+        return any(k == key for _, k in self._seen) or any(
+            _norm(t) == key for _, t in self._waiting
+        )
 
     def _allowed(self, now: float) -> bool:
         return (
@@ -180,8 +258,10 @@ class AutoAnswerPolicy:
         key = _norm(text)
         if self._is_duplicate(key):
             return False
-        if self._in_flight or not self._allowed(now):
-            self._waiting = (now, text)  # newest wins
+        if self._in_flight or self._waiting or not self._allowed(now):
+            self._waiting.append((now, text))
+            while len(self._waiting) > self.max_waiting:
+                self._waiting.popleft()
             return False
         self._start(now, key)
         return True
@@ -193,26 +273,20 @@ class AutoAnswerPolicy:
         self._seen.append((now, key))
 
     def finished(self, now: float) -> str | None:
-        """The in-flight answer ended. Returns a waiting question to answer next, if any."""
+        """The in-flight answer ended. Returns the next waiting question to answer, if any."""
         self._in_flight = False
+        return self._next(now)
+
+    def _next(self, now: float) -> str | None:
         self._prune(now)
-        waiting, self._waiting = self._waiting, None
-        if waiting is None:
-            return None
-        asked_at, text = waiting
-        key = _norm(text)
-        if now - asked_at > self.stale_after or self._is_duplicate(key):
-            return None
-        if not self._allowed(now):
-            # Still rate-limited: keep it waiting for the next finished()/tick().
-            self._waiting = waiting
-            return None
-        self._start(now, key)
+        if not self._waiting or not self._allowed(now):
+            return None  # still rate-limited: tick() retries
+        _, text = self._waiting.popleft()
+        self._start(now, _norm(text))
         return text
 
     def tick(self, now: float) -> str | None:
         """Periodic check: start a waiting question once limits allow."""
-        if self._in_flight or self._waiting is None:
+        if self._in_flight:
             return None
-        self._in_flight = True  # finished() releases it and applies the checks
-        return self.finished(now)
+        return self._next(now)

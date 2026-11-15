@@ -30,9 +30,21 @@ export function useCopilot() {
   }, []);
 
   const ask = useCallback(
-    async (mode: CopilotMode, question: string | null, tone: CopilotTone, transcript: TranscriptState): Promise<string | null> => {
+    async (
+      mode: CopilotMode,
+      question: string | null,
+      tone: CopilotTone,
+      transcript: TranscriptState,
+      userContext: string | null = null,
+    ): Promise<string | null> => {
       try {
-        await api.askCopilot({ mode, question, tone, transcript: contextFromTranscript(transcript) });
+        await api.askCopilot({
+          mode,
+          question,
+          tone,
+          transcript: contextFromTranscript(transcript),
+          userContext,
+        });
         return null;
       } catch (e) {
         // Errors before the request was sent (e.g. no meeting) have no pending item.

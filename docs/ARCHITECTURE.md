@@ -198,8 +198,15 @@ STT final line ─► LiveAssist (per stream, in memory)
 desktop: copilot.settings ─► LiveAssist.update_settings   (re-sent by the client after reconnects)
 ```
 
-* **Detection is a cheap heuristic** (trailing "?" or a request opener, plus second-person
-  cues for "directed"), so no LLM call is spent on lines that are not questions. Only the
+* **Detection is two-stage.** A free heuristic (trailing "?" or a request opener, plus
+  second-person cues for "directed") settles clear lines. Lines it cannot settle but that
+  carry interrogative cues (STT dropped the "?", no "você"/"you", a question whose target is
+  unclear) get a small LLM check (`app/ai/question_check.py`) with the last 8 lines and the
+  user's context (e.g. their name). Statements and greetings never reach the LLM.
+* **User context ("Meu contexto")**: free text the user writes about themselves and the
+  meeting, stored only on the desktop (localStorage), sent in `copilot.settings` and with
+  manual questions, held in server memory for the meeting only. The prompt treats it as true
+  facts about the user; answers based on it are labelled `from_user_context`. Only the
   *others* stream (system audio) is checked: the user's own questions are not answered.
 * Auto answers reuse the Ask-Copilot prompt rules and grounding enforcement; they share the
   monthly copilot quota with manual questions and are metered the same way

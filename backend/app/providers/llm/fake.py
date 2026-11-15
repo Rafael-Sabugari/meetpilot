@@ -33,12 +33,28 @@ class FakeLLMProvider:
                 output_tokens=max(1, len(input_text) // 4),
                 model="fake",
             )
+        if schema_name == "question_check":
+            last = input_text.split("</transcript>")[0].strip().splitlines()[-1].lower()
+            is_q = "?" in last or "como fica" in last or "how does that look" in last
+            other = any(n in last for n in ("joão,", "john,"))
+            return LLMResult(
+                data={"is_question": is_q, "directed_to_user": is_q and not other},
+                input_tokens=max(1, (len(instructions) + len(input_text)) // 4),
+                output_tokens=12,
+                model="fake",
+            )
         has_transcript = "<transcript>\n(empty)" not in input_text
         question = input_text.split("<question>\n", 1)[-1].split("\n</question>", 1)[0]
         return LLMResult(
             data={
                 "answer": f"(fake LLM) {question[:120]}",
-                "grounding": "from_conversation" if has_transcript else "general_suggestion",
+                "grounding": (
+                    "from_user_context"
+                    if "<user_context>" in input_text
+                    else "from_conversation"
+                    if has_transcript
+                    else "general_suggestion"
+                ),
                 "explanation": "Development provider: placeholder answer, not real AI.",
                 "missing_info": [],
             },

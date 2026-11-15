@@ -15,6 +15,7 @@ import time
 
 from app.ai.context import ContextSegment, build_context
 from app.ai.copilot import ask
+from app.ai.question_check import check
 from app.ai.translation import translate
 from app.core.config import Settings
 from app.providers.llm.factory import make_llm_provider
@@ -90,6 +91,57 @@ async def main(price_in: float, price_out: float) -> None:
         tout += r.output_tokens
         print(f"\n[translate → {target}] {ms:.0f} ms · {r.input_tokens} in / {r.output_tokens} out")
         print(f"  {text}\n  → {out}")
+
+    def seg(src: str, text: str) -> ContextSegment:
+        return ContextSegment(source=src, text=text, start_ms=0)
+
+    about = "Sou o Rafael, dev backend com 5 anos de Python e 2 de Kubernetes na Acme."
+    checks = [
+        (
+            [
+                seg("microphone", "A integração usa a API Pix."),
+                seg("system", "E o prazo, como fica"),
+            ],
+            "pergunta sem '?' logo após você falar → para você",
+        ),
+        (
+            [seg("system", "João, você consegue revisar o contrato até amanhã")],
+            "pergunta para outra pessoa (João)",
+        ),
+        (
+            [seg("system", "Rafael quanto tempo você trabalhou com Kubernetes")],
+            "pelo nome, sem '?'",
+        ),
+        ([seg("system", "Vamos falar agora sobre o cronograma")], "afirmação"),
+        (
+            [seg("system", "so tell me about a time you had to debug production")],
+            "pedido em inglês sem '?'",
+        ),
+    ]
+    for recent, label in checks:
+        t0 = time.perf_counter()
+        is_q, directed, r = await check(provider, recent, about)
+        ms = (time.perf_counter() - t0) * 1000
+        tin += r.input_tokens
+        tout += r.output_tokens
+        print(f"\n[check] {ms:.0f} ms · {label}\n  → pergunta={is_q} para_você={directed}")
+    t0 = time.perf_counter()
+    a = await ask(
+        provider,
+        mode="ask",
+        question='Others just asked: "Qual é a sua experiência com Kubernetes?". Suggest '
+        "what the User could say in reply, following all rules.",
+        ctx=build_context(PT, settings.copilot_max_context_chars),
+        answer_language="pt-BR",
+        meeting_language="pt-BR",
+        tone="natural",
+        max_output_tokens=settings.copilot_max_output_tokens,
+        user_context=about,
+    )
+    tin += a.input_tokens
+    tout += a.output_tokens
+    ms = (time.perf_counter() - t0) * 1000
+    print(f"\n[ask + user context] {ms:.0f} ms · grounding: {a.grounding}\n  {a.answer}")
     cost = tin / 1e6 * price_in + tout / 1e6 * price_out
     print(f"\nTotal: {tin} input + {tout} output tokens ≈ US$ {cost:.5f}")
 

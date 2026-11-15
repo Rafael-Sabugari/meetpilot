@@ -83,6 +83,7 @@ or answer text is stored or logged. Works for active and finished meetings.
 3. Client sends binary frames: `[u8 source 0=system 1=microphone][u32 LE seq][640 B PCM s16le 16 kHz mono]` (645 bytes, 20 ms).
 4. Client control (text): `capture.paused`, `capture.resumed`, `capture.stopped`, and
    `{"type": "copilot.settings", "auto_suggestions": "off"|"directed"|"all", "tone": "natural"|"concise"|"technical"|"formal", "translate_to": "pt-BR"|"en"|null}`
+   plus optional `"user_context": "<≤ 4000 chars written by the user>"`
    (any time; invalid values get an `error` with code `bad_settings`, the stream stays open).
    Defaults: `directed`, `natural`, no translation.
 5. Server events (envelope `{v:1, type, meeting_id, seq, ts, payload}`):
@@ -90,13 +91,16 @@ or answer text is stored or logged. Works for active and finished meetings.
    * `question.detected` — `{question_id, segment_id, text, directed}`: a final line from
      *others* (system audio) that is a question; with `directed` only questions aimed at the
      user (second person, or requests like "pode explicar…"/"can you…") are reported.
-     Tag questions ("Certo?", "right?") and very short ones are ignored.
+     Tag questions ("Certo?", "right?") and very short ones are ignored. `via`: `"rules"`
+     (free heuristic) or `"ai"` (lines the rules could not settle — no "?", no "você" —
+     checked by the LLM with the last 8 lines; ≤ 30 checks/min, metered as `question_check`,
+     not counted in the copilot quota).
    * `answer.started` / `answer.completed` / `answer.failed` — automatic suggestion for a
      detected question, same `question_id`. `completed` carries the Ask-Copilot answer shape
      (`answer, grounding, explanation, missing_info, provider, requests_remaining`) plus
      `question`. `failed`: `{question_id, question, code: "llm_error"|"copilot_quota", message, retryable}`.
-     Limits: one answer in flight (newest waiting question wins), ≥ 6 s apart, ≤ 6 per
-     minute, the same question is not answered twice within 60 s, questions older than 20 s
+     Limits: one answer in flight; questions asked meanwhile wait in a FIFO queue of 3 and are
+     answered in order; ≥ 3 s apart, ≤ 10 per minute, the same question is not answered twice within 60 s, questions older than 20 s
      are dropped. Each answer counts as one copilot request.
    * `translation.updated` — `{segment_id, source, target_language, text}`: translation of
      one final line (never partials, never twice). Skipped when the meeting language already

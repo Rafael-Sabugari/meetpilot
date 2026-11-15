@@ -154,12 +154,15 @@ pub struct CopilotRequest {
     /// "natural" | "concise" | "technical" | "formal"
     pub tone: String,
     pub language: Option<String>,
+    /// "My context" written by the user; omitted when empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_context: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct CopilotAnswer {
     pub answer: String,
-    /// "from_conversation" | "general_suggestion" | "needs_confirmation"
+    /// "from_conversation" | "from_user_context" | "general_suggestion" | "needs_confirmation"
     pub grounding: String,
     pub explanation: String,
     pub missing_info: Vec<String>,
