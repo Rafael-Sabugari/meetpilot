@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  CopilotAnswer,
+  CopilotMode,
+  CopilotTone,
   Language,
   LinkStatus,
   RealtimeEnvelope,
@@ -42,6 +45,24 @@ export interface UsageDto {
   used_seconds: number;
   limit_seconds: number;
   remaining_seconds: number;
+}
+
+export interface AskRequest {
+  mode: CopilotMode;
+  question?: string | null;
+  transcript: { source: "system" | "microphone"; text: string; start_ms: number }[];
+  tone: CopilotTone;
+  language?: "pt-BR" | "en" | null;
+}
+
+export type AnswerEvent = CopilotAnswer & { id: number; mode: CopilotMode; question: string | null };
+
+export interface PendingEvent {
+  id: number;
+  mode: CopilotMode;
+  question: string | null;
+  state: "pending" | "failed";
+  error?: string;
 }
 
 export interface Credentials {
@@ -90,6 +111,7 @@ export const api = {
   logout: () => invoke<void>("account_logout"),
   account: () => invoke<AccountInfo | null>("account_status"),
   usage: () => invoke<UsageDto>("account_usage"),
+  askCopilot: (request: AskRequest) => invoke<AnswerEvent>("ask_copilot", { request }),
 };
 
 export const events = {
@@ -103,4 +125,8 @@ export const events = {
     listen<LinkStatus>("realtime://status", (e) => cb(e.payload)),
   onServer: (cb: (env: RealtimeEnvelope) => void): Promise<UnlistenFn> =>
     listen<RealtimeEnvelope>("realtime://event", (e) => cb(e.payload)),
+  onCopilotAnswer: (cb: (a: AnswerEvent) => void): Promise<UnlistenFn> =>
+    listen<AnswerEvent>("copilot://answer", (e) => cb(e.payload)),
+  onCopilotPending: (cb: (p: PendingEvent) => void): Promise<UnlistenFn> =>
+    listen<PendingEvent>("copilot://pending", (e) => cb(e.payload)),
 };

@@ -83,11 +83,28 @@ struct Active {
 #[derive(Default)]
 pub struct CaptureState {
     active: Mutex<Option<Active>>,
+    /// Most recent transcribed meeting, kept after Stop so the user can still ask about it.
+    last_meeting: Mutex<Option<String>>,
 }
 
 impl CaptureState {
     fn lock(&self) -> std::sync::MutexGuard<'_, Option<Active>> {
         self.active.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Meeting the copilot should use: the live one, otherwise the last one.
+    pub fn meeting_for_copilot(&self) -> Option<String> {
+        if let Some(id) = self
+            .lock()
+            .as_ref()
+            .and_then(|a| a.uplink.as_ref().map(|u| u.meeting_id.clone()))
+        {
+            return Some(id);
+        }
+        self.last_meeting
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
     }
 }
 
@@ -358,6 +375,9 @@ pub async fn start_capture(
             return Err(e.into());
         }
     };
+    if let Some(u) = &uplink {
+        *state.last_meeting.lock().unwrap_or_else(|p| p.into_inner()) = Some(u.meeting_id.clone());
+    }
     let active = Active {
         session,
         demo: request.demo,

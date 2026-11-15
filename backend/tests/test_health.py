@@ -34,6 +34,8 @@ def test_docs_disabled_in_production() -> None:
         database_url="sqlite+aiosqlite://",
         stt_provider="deepgram",
         deepgram_api_key="dg",
+        llm_provider="openai",
+        openai_api_key="sk-test",
     )
     c = TestClient(create_app(s))
     assert c.get("/api/docs").status_code == 404

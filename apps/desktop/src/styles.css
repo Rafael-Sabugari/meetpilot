@@ -112,3 +112,16 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .overlay__lines .who { font-weight: 600; margin-right: 6px; }
 .form .controls { flex-wrap: wrap; align-items: center; }
 .btn { white-space: nowrap; }
+/* Slice 3: copilot */
+.row.wrap { flex-wrap: wrap; margin: 8px 0; }
+.ask { margin: 6px 0 10px; }
+.ask input { flex: 1; min-width: 0; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px; font: inherit; }
+.answers { display: grid; gap: 10px; max-height: 420px; overflow-y: auto; }
+.answer { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel-2); display: grid; gap: 6px; }
+.answer p { margin: 0; }
+.answer__q { font-weight: 600; color: var(--muted); font-size: 13px; }
+.answer__text { font-size: 15.5px; line-height: 1.45; white-space: pre-wrap; }
+.answer--compact { padding: 6px 8px; font-size: 13px; }
+.answer--compact .answer__text { font-size: 13px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.warn-text { color: #fcd34d; }
+.overlay__copilot { display: grid; gap: 6px; }

@@ -38,14 +38,37 @@ Events: `capture://status` (`CaptureStatus`), `capture://level` (`LevelReading`)
 | GET | `/meetings`, `/meetings/{id}` | ✅ |
 | POST | `/meetings/{id}/finish` | ✅ |
 | DELETE | `/meetings/{id}` → 204 (cascades usage links) | ✅ |
-| GET | `/usage` → `{period_start, used_seconds, limit_seconds, remaining_seconds}` | ✅ |
-| GET | `/meetings/{id}/transcript`, `/summary`; POST `/copilot` | 🛠 |
+| GET | `/usage` → `{period_start, used_seconds, limit_seconds, remaining_seconds, copilot_requests_used, copilot_requests_limit}` | ✅ |
+| POST | `/meetings/{id}/copilot` — see §2.1 | ✅ |
+| GET | `/meetings/{id}/transcript`, `/summary` | 🛠 |
 | PATCH | `/me/settings` | 🛠 |
 | … | knowledge, billing | 🛠 |
 
 Tenant-scoped routes return **404** (not 403) for other users' resources. Tokens: access JWT
 (HS256, 15 min, `typ=access`); stream JWT (2 min, `typ=stream`, bound to one meeting via
 `mid`); refresh tokens are opaque random strings stored only as SHA-256 hashes (30 days).
+
+### 2.1 Ask Copilot — `POST /meetings/{id}/copilot` ✅
+
+Request:
+```json
+{ "mode": "ask" | "reply" | "summarize",
+  "question": "string (required for ask, ≤1000)",
+  "transcript": [{ "source": "system"|"microphone", "text": "≤2000", "start_ms": 0 }],  // ≤500, sent by the desktop, never stored
+  "tone": "natural" | "concise" | "technical" | "formal",
+  "language": "pt-BR" | "en" | null }   // answer language; default = meeting language
+```
+Response:
+```json
+{ "answer": "…", "grounding": "from_conversation" | "general_suggestion" | "needs_confirmation",
+  "explanation": "…", "missing_info": ["…"], "provider": "openai",
+  "context": { "used_segments": 42, "total_segments": 80, "truncated": true },
+  "usage": { "input_tokens": 812, "output_tokens": 96 }, "requests_remaining": 199 }
+```
+Errors: 404 (not your meeting), 402 (monthly copilot limit), 429 (per-minute limit),
+503 (provider temporarily failed — retry), 502 (provider refused). Only counters are
+recorded (`copilot_request`, `llm_input_tokens`, `llm_output_tokens`); no question, context
+or answer text is stored or logged. Works for active and finished meetings.
 
 ## 3. Realtime WebSocket — ✅
 

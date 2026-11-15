@@ -43,3 +43,17 @@ async def summary(db: AsyncSession, settings: Settings, user: User) -> UsageSumm
         )
     ).scalar_one()
     return UsageSummary(start, float(used), plan_limit_seconds(settings, user.plan))
+
+
+async def count_this_period(db: AsyncSession, user: User, kind: str) -> float:
+    start = period_start()
+    total = (
+        await db.execute(
+            select(func.coalesce(func.sum(UsageRecord.quantity), 0.0)).where(
+                UsageRecord.user_id == user.id,
+                UsageRecord.kind == kind,
+                UsageRecord.created_at >= start,
+            )
+        )
+    ).scalar_one()
+    return float(total)

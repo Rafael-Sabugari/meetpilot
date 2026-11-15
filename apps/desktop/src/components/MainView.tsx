@@ -6,6 +6,8 @@ import type { MessageKey } from "../lib/i18n";
 import { useCapture } from "../hooks/useCapture";
 import { useAccount } from "../hooks/useAccount";
 import { useTranscript } from "../hooks/useTranscript";
+import { useCopilot } from "../hooks/useCopilot";
+import { CopilotPanel } from "./CopilotPanel";
 import { AccountPanel } from "./AccountPanel";
 import { ConsentDialog, hasTranscriptionConsent } from "./ConsentDialog";
 import { TranscriptPanel } from "./TranscriptPanel";
@@ -40,6 +42,7 @@ export function MainView({ t }: { t: T }) {
   const [localError, setLocalError] = useState<string | null>(null);
   const acct = useAccount();
   const transcript = useTranscript();
+  const copilot = useCopilot();
   const [transcribe, setTranscribe] = useState(false);
   const [language, setLanguage] = useState<Language>(() =>
     navigator.language?.toLowerCase().startsWith("pt") ? "pt-BR" : "en",
@@ -85,6 +88,9 @@ export function MainView({ t }: { t: T }) {
     setTranscribe(on);
   };
   const droppedFrames = (cap.status as StatusDto | null)?.dropped_frames ?? 0;
+  const meetingId = (cap.status as StatusDto | null)?.meeting_id ?? null;
+  // Live meeting, or the last one (the app keeps its id so you can ask after Stop).
+  const copilotEnabled = !!acct.account && (!!meetingId || transcript.state.finals.length > 0);
 
   const requestPermission = async (source: AudioSource) => {
     try {
@@ -248,6 +254,10 @@ export function MainView({ t }: { t: T }) {
 
         {(transcribe || transcript.state.finals.length > 0 || transcript.state.link) && (
           <TranscriptPanel t={t} state={transcript.state} droppedFrames={droppedFrames} />
+        )}
+
+        {acct.account && (
+          <CopilotPanel t={t} copilot={copilot} transcript={transcript.state} enabled={copilotEnabled} />
         )}
 
         <AccountPanel t={t} acct={acct} />

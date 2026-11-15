@@ -16,6 +16,7 @@ dependencies = [
   "pyjwt>=2.15.1",
   "websockets>=17.4",
   "email-validator>=2",
+  "httpx>=0.28",
 ]
 
 [dependency-groups]
@@ -36,6 +37,8 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S105", "S106"]
+# Prompt text is kept readable as prose.
+"app/ai/copilot.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -7,7 +7,10 @@
 pub mod api;
 pub mod stream;
 
-pub use api::{ApiClient, ApiError, Me, MeetingCreated, StreamGrant, TokenPair, Usage};
+pub use api::{
+    ApiClient, ApiError, ContextSegment, CopilotAnswer, CopilotRequest, Me, MeetingCreated,
+    StreamGrant, TokenPair, Usage,
+};
 pub use stream::{
     encode_frame, spawn_stream, EventSink, LinkStatus, Source, StreamConfig, StreamEvent,
     StreamHandle, TokenFuture, TokenProvider,

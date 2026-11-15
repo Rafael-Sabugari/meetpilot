@@ -1,6 +1,28 @@
 # TASKS
 
-Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next
+Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
+
+## ✅ Completed — Slice 3 (Ask Copilot)
+
+- ✅ LLM provider protocol; `fake` (dev/test) and OpenAI Responses adapter (strict JSON schema, `store: false`, reasoning effort, timeouts, error mapping without leaking provider bodies)
+- ✅ Context manager: client-sent transcript, newest-first character budget, chronological prompt
+- ✅ Prompt rules from the brief + server-side grounding enforcement (placeholders ⇒ needs confirmation)
+- ✅ `POST /meetings/{id}/copilot` with modes ask / reply / summarize, tone, language; owner-only; monthly + per-minute limits; token metering; works after Stop
+- ✅ Desktop: `ask_copilot` command, answers broadcast to main window and overlay, Copilot panel (shortcuts, free question, tone, grounding badge, copy, what to confirm, remaining quota), overlay "How do I answer?" + latest answer
+- ✅ Docs: API, architecture, security/privacy, PRD decisions, roadmap, README
+
+### Verification performed (slice 3)
+
+| Check | Result |
+|---|---|
+| Backend **72 tests** (17 new: endpoint, limits, isolation, errors, context budget, grounding rules, OpenAI adapter shape/errors/refusal/timeout) | ✅ |
+| Rust **43 tests**, clippy -D warnings on Linux + cross Windows + cross macOS | ✅ |
+| Frontend **41 tests** (reducer, context building, components), tsc, build | ✅ |
+| E2E (real app + API on PostgreSQL, fake STT/LLM): overlay "How do I answer?" → answer with label in overlay **and** main window; typed question; summary; question after Stop; DB holds only counters (4 requests, tokens), no text | ✅ |
+
+## ⏸ Parked
+
+- ⏸ Private mode (on-device Whisper) — owner set it aside. Engine + tests on local branch `wip/whisper-private-mode` (not pushed).
 
 ## ✅ Completed — Slice 2 (live transcription)
 
@@ -81,12 +103,13 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 ## ⛔ Blocked — needs the owner
 
 - ⛔ **Real Deepgram run**: needs a Deepgram API key (never committed). Run `backend/scripts/deepgram_smoke.py`, then the app with `MEETPILOT_STT_PROVIDER=deepgram`.
+- ⛔ **Real OpenAI run**: needs an OpenAI API key; then build a small PT-BR/EN evaluation set to tune the prompt.
 - ⛔ Hardware validation of capture on Windows and macOS (slice 1b) — still pending.
 
 ## ⏭ Next
 
-1. Real-key run + PT-BR accuracy/latency notes; hardware test plan on Windows/macOS.
-2. Slice 3: context manager, LLM provider abstraction, manual "Ask Copilot" with grounding labels.
+1. Real-key runs (Deepgram, OpenAI) + hardware test plan on Windows/macOS.
+2. Slice 4: automatic question detection + suggested answers, PT ↔ EN translation.
 3. Refresh token in OS keychain; email verification / password reset.
 4. Server job to finish meetings left `active`; Redis for rate limit/concurrency when scaling out.
 5. ESLint + Prettier for the frontend (currently `tsc --strict` only).

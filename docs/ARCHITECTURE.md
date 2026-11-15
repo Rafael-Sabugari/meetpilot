@@ -158,6 +158,31 @@ CaptureSession ─Frame(seq)─► StreamHandle.send_frame (try_send, never bloc
 * `stop` stops local capture immediately; the uplink then flushes queued frames, sends
   `capture.stopped`, waits (≤10 s) for final segments, and the meeting is marked finished.
 
+## 3.6 Ask Copilot (slice 3)
+
+```text
+UI transcript (finals + live partials) ──► ask_copilot (Tauri) ──► POST /meetings/{id}/copilot
+                                                                   │ context budget (12k chars, newest first)
+                                                                   │ prompt rules + JSON schema
+                                                                   ▼
+                                                     LLMProvider (OpenAI Responses, store=false)
+answer + grounding ◄── copilot://answer (main window and overlay) ◄─┘ validate (placeholders ⇒ needs_confirmation)
+```
+
+* **Context comes from the desktop**, which already has the transcript. The server stays
+  stateless (survives restarts, scales horizontally) and stores nothing; it enforces the
+  size budget itself. The same endpoint would serve a future on-device transcription mode.
+* Structured output (strict JSON schema) guarantees every answer carries a grounding label:
+  *From the conversation*, *General suggestion*, *Needs confirmation*. The brief's *From your
+  profile/documents* labels arrive with the knowledge base (P1).
+* Rules in the prompt (`app/ai/copilot.py`): answer language/tone, concise, never invent the
+  user's experience or credentials (use `[placeholders]` + `needs_confirmation`), never
+  attribute statements not in the transcript, treat the transcript as untrusted (prompt
+  injection), no help deceiving participants. A server-side check forces
+  `needs_confirmation` whenever placeholders appear.
+* Cost controls: monthly request quota per plan, per-minute rate limit, bounded context and
+  output tokens; tokens metered per request.
+
 ## 4. Backend (`backend/`)
 
 FastAPI modular monolith; modules are packages under `app/` and are extracted only when
@@ -169,7 +194,8 @@ request IDs; health; SQLAlchemy 2 async models + Alembic migrations (`users`, `m
 (Argon2id, JWT access/stream tokens, rotating refresh tokens, login rate limit); meetings
 with tenant isolation; usage metering + monthly entitlement; realtime gateway
 (`app/realtime/gateway.py`); STT providers behind a protocol — `fake` (dev/test) and
-`deepgram` (`app/providers/stt/deepgram.py`).
+`deepgram` (`app/providers/stt/deepgram.py`); LLM providers behind a protocol — `fake` and
+`openai` (`app/providers/llm/`); copilot (`app/ai/`).
 
 Planned modules (see `ROADMAP.md`): `auth`, `users`, `meetings`, `transcripts`, `realtime`
 gateway, `providers/{stt,llm,embeddings}`, `ai/{context,question_detection,response_generation,translation,summarization,action_items}`,
@@ -196,4 +222,6 @@ gateway, `providers/{stt,llm,embeddings}`, `ai/{context,question_detection,respo
 | Deepgram Nova-3 monolingual by default (`pt-BR`/`en`), `multi` optional | PT-BR support with recent model update; streaming WebSocket; per-request training opt-out; monolingual is cheaper than multilingual |
 | One STT connection per audio source | Separate "you" vs "others" attribution; provider bills per stream either way |
 | Native TLS (`native-tls`) in the desktop client | Uses the OS trust store (corporate proxies/CAs) on Windows/macOS |
+| OpenAI GPT-5 mini via the Responses API for the copilot (configurable model) | Low cost (US$0.25 / 2.00 per M tokens, Sept 2026), structured outputs, `store: false`; swappable behind `LLMProvider` |
+| Copilot context sent by the client, not kept server-side | Privacy (nothing stored), stateless server, robust to restarts |
 | In-process rate limiter, concurrency and seq cache | Single instance for now; move to Redis when running several replicas (dedup is already DB-backed) |

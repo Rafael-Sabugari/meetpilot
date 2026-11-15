@@ -21,6 +21,8 @@ pub enum ApiError {
     Rejected { status: u16, message: String },
     #[error("Too many attempts. Try again in a few minutes.")]
     RateLimited,
+    #[error("{message}")]
+    Unavailable { status: u16, message: String },
     #[error("Cannot reach the MeetPilot server: {detail}")]
     Network { detail: String },
     #[error("Unexpected server response ({status}).")]
@@ -32,7 +34,10 @@ impl ApiError {
     pub fn is_transient(&self) -> bool {
         matches!(
             self,
-            ApiError::Network { .. } | ApiError::Server { .. } | ApiError::RateLimited
+            ApiError::Network { .. }
+                | ApiError::Server { .. }
+                | ApiError::RateLimited
+                | ApiError::Unavailable { status: 503, .. }
         )
     }
 }
@@ -45,8 +50,9 @@ pub fn error_for_status(status: u16, body: &str) -> ApiError {
             Some(serde_json::Value::String(s)) => Some(s.clone()),
             Some(other) => Some(other.to_string()),
             None => None,
-        })
-        .unwrap_or_else(|| format!("HTTP {status}"));
+        });
+    let has_detail = message.is_some();
+    let message = message.unwrap_or_else(|| format!("HTTP {status}"));
     match status {
         401 => ApiError::Unauthorized,
         402 => ApiError::QuotaExceeded,
@@ -54,6 +60,7 @@ pub fn error_for_status(status: u16, body: &str) -> ApiError {
         409 => ApiError::Conflict { message },
         429 => ApiError::RateLimited,
         400..=499 => ApiError::Rejected { status, message },
+        502 | 503 if has_detail => ApiError::Unavailable { status, message },
         _ => ApiError::Server { status },
     }
 }
@@ -128,6 +135,36 @@ pub struct MeetingOut {
 pub struct MeetingCreated {
     pub meeting: MeetingOut,
     pub stream: StreamGrant,
+}
+
+/// One transcript line sent as copilot context (the server never stores it).
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ContextSegment {
+    pub source: String,
+    pub text: String,
+    pub start_ms: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct CopilotRequest {
+    /// "ask" | "reply" | "summarize"
+    pub mode: String,
+    pub question: Option<String>,
+    pub transcript: Vec<ContextSegment>,
+    /// "natural" | "concise" | "technical" | "formal"
+    pub tone: String,
+    pub language: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct CopilotAnswer {
+    pub answer: String,
+    /// "from_conversation" | "general_suggestion" | "needs_confirmation"
+    pub grounding: String,
+    pub explanation: String,
+    pub missing_info: Vec<String>,
+    pub provider: String,
+    pub requests_remaining: i64,
 }
 
 #[derive(Clone)]
@@ -252,6 +289,21 @@ impl ApiClient {
         self.send(req).await
     }
 
+    pub async fn copilot(
+        &self,
+        access: &str,
+        meeting_id: &str,
+        request: &CopilotRequest,
+    ) -> Result<CopilotAnswer, ApiError> {
+        let req = self
+            .http
+            .post(self.url(&format!("api/v1/meetings/{meeting_id}/copilot")))
+            .bearer_auth(access)
+            .timeout(std::time::Duration::from_secs(45))
+            .json(request);
+        self.send(req).await
+    }
+
     pub async fn finish_meeting(&self, access: &str, meeting_id: &str) -> Result<(), ApiError> {
         let req = self
             .http
@@ -307,6 +359,15 @@ mod tests {
             ApiError::Rejected { status: 422, .. }
         ));
         assert!(error_for_status(503, "").is_transient());
+        assert_eq!(
+            error_for_status(503, r#"{"detail":"the AI took too long to answer"}"#),
+            ApiError::Unavailable {
+                status: 503,
+                message: "the AI took too long to answer".into()
+            }
+        );
+        assert!(error_for_status(503, r#"{"detail":"x"}"#).is_transient());
+        assert!(!error_for_status(502, r#"{"detail":"declined"}"#).is_transient());
         assert!(!error_for_status(401, "").is_transient());
     }
 }

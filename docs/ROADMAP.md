@@ -30,12 +30,22 @@ restart mid-meeting.
 **Remaining exit criterion:** run with a real Deepgram key on real meeting audio
 (`backend/scripts/deepgram_smoke.py`, then the desktop app).
 
-## ▶ Slice 3 — Ask Copilot (completes brief Milestone 1)
+## ✅ Slice 3 — Ask Copilot (completes brief Milestone 1, pending real keys/hardware)
 
-Context manager (rolling window, token budget), LLM provider abstraction, manual "Ask
-Copilot" with grounding labels, prompt evaluation tests, per-plan budgets.
+LLM provider abstraction (fake + OpenAI Responses), context budgeting, prompt rules,
+grounding labels with server-side enforcement, "How do I answer?" / "Summarize so far" /
+free questions, tone selection, main window + overlay, quotas and metering. Verified
+end-to-end with the fake provider.
 
-## Slice 4 — Copilot intelligence (Sprint 4)
+**Remaining:** real OpenAI key run and a small evaluation set of PT-BR/EN meeting excerpts
+to tune the prompt (accuracy, refusal to invent facts, latency).
+
+## ⏸ Parked — Private mode (on-device Whisper)
+
+Set aside by the owner on 2026-11-15. Tested engine (segmenter, decode queue, verified model
+downloads, whisper.cpp backend) is on local branch `wip/whisper-private-mode`.
+
+## ▶ Slice 4 — Copilot intelligence (Sprint 4)
 
 Question detection (staged, debounced), suggested answers, PT ↔ EN translation with
 original/translated views, echo/duplicate handling between mic and system streams.

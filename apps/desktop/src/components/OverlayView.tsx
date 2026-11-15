@@ -3,6 +3,8 @@ import { isLevelStale, dbfsToPercent } from "../lib/indicator";
 import { useCapture } from "../hooks/useCapture";
 import { useTranscript } from "../hooks/useTranscript";
 import { recentLines } from "../lib/transcript";
+import { useCopilot } from "../hooks/useCopilot";
+import { AnswerCard } from "./CopilotPanel";
 import { CaptureIndicator } from "./CaptureIndicator";
 
 /**
@@ -13,7 +15,10 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
   const cap = useCapture();
   const transcript = useTranscript();
   const state = cap.status?.state ?? "idle";
-  const lines = recentLines(transcript.state, 3);
+  const lines = recentLines(transcript.state, 2);
+  const copilot = useCopilot();
+  const latest = copilot.state.items[0];
+  const live = transcript.state.link?.state === "connected";
   return (
     <main className="overlay" data-tauri-drag-region>
       <div className="overlay__row" data-tauri-drag-region>
@@ -42,6 +47,20 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
           );
         })}
       </div>
+      {(live || latest) && (
+        <div className="overlay__copilot">
+          {live && (
+            <button
+              className="btn btn--small"
+              disabled={copilot.pending}
+              onClick={() => copilot.ask("reply", null, "natural", transcript.state)}
+            >
+              💬 {t("copilot.reply")}
+            </button>
+          )}
+          {latest && <AnswerCard t={t} item={latest} compact />}
+        </div>
+      )}
       {lines.length > 0 && (
         <div className="overlay__lines" aria-live="polite">
           {lines.map((l, i) => (

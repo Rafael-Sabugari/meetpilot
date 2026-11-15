@@ -41,6 +41,11 @@ meetings. Privacy is a product feature, built in from the first slice.
 | No double billing on reconnects (seq de-dup persisted with usage) | `gateway.py` | `test_replay_protection_survives_a_server_restart`; e2e (2,196 frames captured = 2,196 billed across a server restart) |
 | Usage persisted even on abrupt disconnects | `gateway.py` (shielded persist) | `test_replayed_frames_after_reconnect_are_not_retranscribed_or_rebilled` |
 | Transcripts not stored server-side in this version (`store_transcripts` defaults to false) | `models.py` | code review |
+| Copilot: question, context and answer are never stored or logged; only counters are metered | `app/ai/router.py` | `test_ask_uses_transcript_and_meters_usage`; e2e DB check |
+| Copilot: OpenAI requests sent with `store: false`; provider error bodies (which may echo prompts) are never surfaced or logged | `providers/llm/openai.py` | `test_openai_adapter_request_shape_and_parsing`, `test_openai_http_errors` |
+| Copilot never invents the user's facts; placeholders force "Needs confirmation"; transcript treated as untrusted input | `app/ai/copilot.py` | `test_placeholders_force_needs_confirmation`, `test_instructions_encode_the_product_rules` |
+| Copilot only for the meeting owner; monthly and per-minute limits | `app/ai/router.py` | `test_other_users_cannot_use_my_meeting`, `test_monthly_and_per_minute_limits` |
+| UI states that suggestions can be wrong | `CopilotPanel.tsx` | component test |
 | Error events never include audio or transcript text | `gateway.py` | `test_provider_failure_is_reported_as_retryable_error` |
 | `mp-audio-probe --wav` writes audio only when explicitly requested (dev tool) | `mp-audio-probe.rs` | code review |
 | Demo mode visibly labelled DEMO | `CaptureIndicator.tsx` | unit test |
@@ -58,7 +63,9 @@ meetings. Privacy is a product feature, built in from the first slice.
 * Refresh token in the OS keychain (Windows Credential Manager / macOS Keychain).
 * Email verification and password reset; account lockout policy; distributed rate limiting.
 * Server-side cleanup of meetings left `active` when the client could not finish them.
-* Deepgram data-processing agreement and region review before launch.
+* Deepgram and OpenAI data-processing agreements, retention and region review before launch
+  (OpenAI API data may be retained for abuse monitoring under its policies even with
+  `store: false`; confirm terms or zero-data-retention eligibility).
 * Encryption at rest for documents/sensitive fields; signed short-lived object URLs.
 * Data export and deletion workflows; retention jobs; audit events.
 * Provider review (retention, training use, region) before each vendor is enabled; prefer

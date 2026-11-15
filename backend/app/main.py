@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.ai.router import router as copilot_router
 from app.api.v1 import health
 from app.auth.router import router as auth_router
 from app.auth.security import TokenService
@@ -21,6 +22,8 @@ from app.core.logging import configure_logging
 from app.db.base import Base
 from app.db.session import make_engine, make_sessionmaker
 from app.meetings.router import router as meetings_router
+from app.providers.llm.base import LLMProvider
+from app.providers.llm.factory import make_llm_provider
 from app.providers.stt.base import StreamingSTTProvider
 from app.providers.stt.factory import make_stt_provider
 from app.realtime.gateway import ActiveStreams
@@ -31,7 +34,9 @@ log = logging.getLogger("meetpilot.http")
 
 
 def create_app(
-    settings: Settings | None = None, stt_provider: StreamingSTTProvider | None = None
+    settings: Settings | None = None,
+    stt_provider: StreamingSTTProvider | None = None,
+    llm_provider: LLMProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -62,6 +67,7 @@ def create_app(
     app.state.tokens = TokenService(settings)
     app.state.active_streams = ActiveStreams()
     app.state.stt_provider = stt_provider or make_stt_provider(settings)
+    app.state.llm_provider = llm_provider or make_llm_provider(settings)
     if settings.cors_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -92,7 +98,14 @@ def create_app(
         )
         return response
 
-    for r in (health.router, auth_router, meetings_router, usage_router, realtime_router):
+    for r in (
+        health.router,
+        auth_router,
+        meetings_router,
+        usage_router,
+        realtime_router,
+        copilot_router,
+    ):
         app.include_router(r, prefix="/api/v1")
     return app
 

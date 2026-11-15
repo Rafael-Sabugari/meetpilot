@@ -12,8 +12,9 @@ in a private overlay.
 
 ## Status
 
-Slices 1–2 of the roadmap: local audio capture (Windows/macOS) and **live transcription**
-through the MeetPilot backend (Deepgram Nova-3, PT-BR/EN). AI copilot features come next.
+Slices 1–3 of the roadmap: local audio capture (Windows/macOS), **live transcription**
+through the MeetPilot backend (Deepgram Nova-3, PT-BR/EN), and **Ask Copilot** (suggested
+replies, summaries and questions about the conversation, with source labels; OpenAI).
 See [`TASKS.md`](TASKS.md) for exactly what is implemented, tested and still blocked.
 
 ## Repository
@@ -86,6 +87,17 @@ speech-to-text provider, which returns placeholder text (clearly labelled in the
    transcription**, accept the consent dialog, pick the meeting language, press **Start**.
 
 Requests use `mip_opt_out=true` (audio excluded from Deepgram model training).
+
+### Ask Copilot with OpenAI
+
+```bash
+MEETPILOT_LLM_PROVIDER=openai MEETPILOT_OPENAI_API_KEY=... uv run uvicorn app.main:app
+```
+
+In the app, during or after a transcribed capture: **How do I answer?**, **Summarize so
+far**, or type a question. The overlay has a one-click **How do I answer?**. Each answer is
+labelled *From the conversation*, *General suggestion* or *Needs confirmation*; the copilot
+never invents your experience or credentials (it uses `[placeholders]` instead).
 
 ## Checks
 

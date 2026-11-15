@@ -69,3 +69,17 @@ export type LinkStatus =
   | { state: "reconnecting"; attempt: number; retry_in_ms: number }
   | { state: "closed" }
   | { state: "failed"; reason: string; code: number | null };
+
+/** Ask-Copilot (POST /api/v1/meetings/{id}/copilot). */
+export type CopilotMode = "ask" | "reply" | "summarize";
+export type CopilotTone = "natural" | "concise" | "technical" | "formal";
+export type Grounding = "from_conversation" | "general_suggestion" | "needs_confirmation";
+
+export interface CopilotAnswer {
+  answer: string;
+  grounding: Grounding;
+  explanation: string;
+  missing_info: string[];
+  provider: string;
+  requests_remaining: number;
+}

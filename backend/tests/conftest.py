@@ -15,6 +15,9 @@ PASSWORD = "correct horse battery"
 @pytest.fixture(autouse=True)
 def _reset_rate_limiter() -> None:
     auth_router._login_limiter._events.clear()
+    from app.ai import router as copilot_router
+
+    copilot_router._per_minute.clear()
 
 
 @pytest.fixture

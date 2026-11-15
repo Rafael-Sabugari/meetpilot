@@ -23,6 +23,8 @@ def test_production_rejects_default_audio_storage() -> None:
             database_url="postgresql://db/x",
             stt_provider="deepgram",
             deepgram_api_key="dg",
+            llm_provider="openai",
+            openai_api_key="sk-test",
             store_raw_audio_default=True,
         )
 
@@ -50,3 +52,27 @@ def test_deepgram_requires_key_in_production() -> None:
 
 def test_deepgram_training_opt_out_is_default() -> None:
     assert Settings(env="development").deepgram_mip_opt_out is True
+
+
+def test_production_rejects_fake_llm_and_requires_openai_key() -> None:
+    with pytest.raises(ValidationError, match="llm_provider=fake"):
+        Settings.model_validate(
+            {
+                "env": "production",
+                "jwt_secret": "x" * 32,
+                "database_url": "postgresql://db/x",
+                "stt_provider": "deepgram",
+                "deepgram_api_key": "dg",
+            }
+        )
+    with pytest.raises(ValidationError, match="openai_api_key"):
+        Settings.model_validate(
+            {
+                "env": "production",
+                "jwt_secret": "x" * 32,
+                "database_url": "postgresql://db/x",
+                "stt_provider": "deepgram",
+                "deepgram_api_key": "dg",
+                "llm_provider": "openai",
+            }
+        )

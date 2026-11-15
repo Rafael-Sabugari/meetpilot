@@ -52,6 +52,9 @@ Portuguese and English. Initial markets: Brazil and international.
 | 2026-11-15 | Speech-to-text: Deepgram Nova-3 (monolingual `pt-BR`/`en`; `multi` for mixed meetings) | Owner approved. Verified Nov 2026: Nova-3 supports pt-BR (model updated May 2026); streaming monolingual US$0.0048/min promotional (US$0.0077 regular), multilingual US$0.0058/min; `mip_opt_out=true` keeps audio out of training |
 | 2026-11-15 | Trial plan: 60 transcription minutes / month (configurable) | Placeholder until pricing is validated; enforcement is real |
 | 2026-11-15 | Transcripts are not stored server-side yet | Privacy by default; history/storage comes with the opt-in setting in a later slice |
+| 2026-11-15 | On-device Whisper "private mode" explored and **set aside** by the owner; engine work kept on local branch `wip/whisper-private-mode` | Owner decision; cloud (Deepgram) stays the only transcription path for now |
+| 2026-11-15 | Copilot LLM: OpenAI GPT-5 mini (Responses API, structured output, `store: false`) | Verified Sept–Oct 2026 pricing US$0.25/M input, US$2.00/M output (≈US$0.001 per question with ~3k tokens of context); model configurable |
+| 2026-11-15 | Trial copilot quota: 200 questions/month, 20/minute (configurable) | Cost control until pricing is validated |
 | 2026-11-15 | Desktop keeps the session in memory only | Avoids storing tokens on disk before keychain integration; costs a re-login per app start |
 
 ## Open product questions (need the owner's decision; not blocking current work)

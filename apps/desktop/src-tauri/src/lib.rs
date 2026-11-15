@@ -7,6 +7,7 @@
 
 mod account;
 mod capture;
+mod copilot;
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
@@ -93,6 +94,7 @@ pub fn run() {
             account::account_logout,
             account::account_status,
             account::account_usage,
+            copilot::ask_copilot,
         ])
         .run(tauri::generate_context!())
         .expect("error while running MeetPilot");

@@ -36,6 +36,18 @@ class Settings(BaseSettings):
     # Exclude our requests from Deepgram's Model Improvement Program (training).
     deepgram_mip_opt_out: bool = True
 
+    # Copilot (LLM). "fake" is a deterministic local provider for development and tests.
+    llm_provider: Literal["fake", "openai"] = "fake"
+    openai_api_key: SecretStr | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-5-mini"
+    openai_reasoning_effort: Literal["minimal", "low", "medium", "high"] = "low"
+    openai_timeout_seconds: float = 30.0
+    copilot_requests_per_month: int = 200
+    copilot_requests_per_minute: int = 20
+    copilot_max_context_chars: int = 12_000
+    copilot_max_output_tokens: int = 1_200
+
     # Privacy defaults (docs/SECURITY_PRIVACY.md): raw audio is never stored by default.
     store_raw_audio_default: bool = False
     transcript_retention_days_default: int = 30
@@ -61,6 +73,10 @@ class Settings(BaseSettings):
                 raise ValueError("stt_provider=fake is not allowed in staging/production")
             if self.stt_provider == "deepgram" and not self.deepgram_api_key:
                 raise ValueError("deepgram_api_key is required when stt_provider=deepgram")
+            if self.llm_provider == "fake":
+                raise ValueError("llm_provider=fake is not allowed in staging/production")
+            if self.llm_provider == "openai" and not self.openai_api_key:
+                raise ValueError("openai_api_key is required when llm_provider=openai")
             if self.store_raw_audio_default:
                 raise ValueError(
                     "store_raw_audio_default must be False; audio storage is opt-in per user"
