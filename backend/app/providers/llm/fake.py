@@ -26,6 +26,13 @@ class FakeLLMProvider:
         )
         if self.fail:
             raise self.fail
+        if schema_name == "translation":
+            return LLMResult(
+                data={"translation": f"(tradução de teste) {input_text}"},
+                input_tokens=max(1, len(input_text) // 4),
+                output_tokens=max(1, len(input_text) // 4),
+                model="fake",
+            )
         has_transcript = "<transcript>\n(empty)" not in input_text
         question = input_text.split("<question>\n", 1)[-1].split("\n</question>", 1)[0]
         return LLMResult(

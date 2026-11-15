@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     copilot_requests_per_minute: int = 20
     copilot_max_context_chars: int = 12_000
     copilot_max_output_tokens: int = 1_200
+    # Automatic suggestions: minimum seconds between two auto answers and cap per minute.
+    copilot_auto_min_interval_seconds: float = 6.0
+    copilot_auto_max_per_minute: int = 6
 
     # Privacy defaults (docs/SECURITY_PRIVACY.md): raw audio is never stored by default.
     store_raw_audio_default: bool = False

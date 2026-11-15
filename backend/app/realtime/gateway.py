@@ -15,17 +15,23 @@ import json
 import logging
 import struct
 import time
+from collections import deque
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.ai.context import ContextSegment
+from app.ai.questions import AutoAnswerPolicy
 from app.auth.security import TokenError, TokenService
 from app.core.config import Settings
 from app.db.models import Meeting, UsageRecord, User
+from app.providers.llm.base import LLMProvider
 from app.providers.stt.base import StreamingSTTProvider, StreamingSTTSession, STTError
+from app.realtime.assist import LiveAssist
 from app.realtime.events import AudioFormat, AudioSource, Envelope, EventType
-from app.usage.service import summary
+from app.usage.service import count_this_period, summary
 
 log = logging.getLogger("meetpilot.realtime")
 router = APIRouter(tags=["realtime"])
@@ -62,6 +68,11 @@ class ActiveStreams:
     def __init__(self) -> None:
         self._counts: dict[str, int] = {}
         self.last_seq: dict[tuple[str, AudioSource], int] = {}
+        # Rolling transcript per meeting for live assistance (memory only, never stored).
+        self.contexts: dict[str, deque[ContextSegment]] = {}
+
+    def context_for(self, meeting_id: str) -> "deque[ContextSegment]":
+        return self.contexts.setdefault(meeting_id, deque(maxlen=400))
 
     def acquire(self, user_id: str, limit: int) -> bool:
         if self._counts.get(user_id, 0) >= limit:
@@ -96,6 +107,7 @@ class StreamSession:
         provider: StreamingSTTProvider,
         remaining_seconds: float,
         last_seq: dict[tuple[str, AudioSource], int] | None = None,
+        assist_factory: "Callable[[StreamSession], LiveAssist] | None" = None,
     ) -> None:
         self.ws = ws
         # Shared across reconnects of the same meeting: replayed frames are dropped.
@@ -119,6 +131,7 @@ class StreamSession:
         self.send_lock = asyncio.Lock()
         self.close_code = 1000
         self.close_reason = ""
+        self.assist: LiveAssist | None = assist_factory(self) if assist_factory else None
 
     @property
     def used_frames(self) -> int:
@@ -159,10 +172,18 @@ class StreamSession:
             async for seg in session.results():
                 kind = EventType.TRANSCRIPT_FINAL if seg.is_final else EventType.TRANSCRIPT_PARTIAL
                 base = self.base_ms.get(source, 0)
+                start = seg.start_ms + base
                 shifted = seg.model_copy(
-                    update={"start_ms": seg.start_ms + base, "end_ms": seg.end_ms + base}
+                    update={
+                        "start_ms": start,
+                        "end_ms": seg.end_ms + base,
+                        # Unique across reconnects (provider ids restart per connection).
+                        "segment_id": f"{source}-{start}",
+                    }
                 )
                 await self.emit(kind, shifted.model_dump())
+                if seg.is_final and self.assist is not None:
+                    await self.assist.on_final(shifted)
         except STTError as e:
             log.warning("stt session failed", extra={"source": source, "retryable": e.retryable})
             await self.error("stt_error", str(e), retryable=e.retryable)
@@ -217,6 +238,11 @@ class StreamSession:
             await self.emit(EventType.CAPTURE_RESUMED)
         elif kind == EventType.CAPTURE_STOPPED:
             return False
+        elif kind == "copilot.settings" and self.assist is not None:
+            try:
+                self.assist.update_settings(msg)
+            except ValueError:
+                await self.error("bad_settings", "invalid live settings", retryable=False)
         return True
 
     async def background(self) -> None:
@@ -227,6 +253,8 @@ class StreamSession:
             for source, session in list(self.stt.items()):
                 if self.paused or now - self.last_audio.get(source, 0) >= KEEPALIVE_EVERY_S:
                     await session.keepalive()
+            if self.assist is not None:
+                await self.assist.tick()
             if now - last_usage >= USAGE_EVERY_S:
                 last_usage = now
                 await self.usage_event()
@@ -270,6 +298,9 @@ class StreamSession:
                     await session.close()
             if self.forwarders:
                 await asyncio.wait(self.forwarders, timeout=6)
+            if self.assist is not None:
+                # Deliver in-flight suggestions and translations before closing.
+                await self.assist.drain(timeout=10)
             await self.usage_event()
             await self.emit(EventType.CAPTURE_STOPPED, {"session_seconds": round(self.used, 2)})
 
@@ -291,6 +322,17 @@ async def _persist_usage(
                         quantity=secs,
                     )
                 )
+        for item in s.assist.usage if s.assist is not None else []:
+            if item.quantity > 0:
+                db.add(
+                    UsageRecord(
+                        user_id=s.user.id,
+                        meeting_id=s.meeting.id,
+                        kind=item.kind,
+                        provider=item.provider,
+                        quantity=item.quantity,
+                    )
+                )
         m = await db.get(Meeting, s.meeting.id)
         if m is not None:
             m.audio_seconds += s.used
@@ -310,6 +352,7 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
     sm: async_sessionmaker[AsyncSession] = app.state.sessionmaker
     active: ActiveStreams = app.state.active_streams
     provider: StreamingSTTProvider = app.state.stt_provider
+    llm: LLMProvider = app.state.llm_provider
 
     await ws.accept()
     try:
@@ -332,6 +375,7 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
             await ws.close(Close.NOT_FOUND, "meeting not found or finished")
             return
         usage = await summary(db, settings, user)
+        copilot_used = await count_this_period(db, user, "copilot_request")
 
     if usage.remaining_seconds <= 0:
         await ws.close(Close.QUOTA, "quota exceeded")
@@ -353,6 +397,19 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
         provider=provider,
         remaining_seconds=usage.remaining_seconds,
         last_seq=active.last_seq,
+        assist_factory=lambda sess: LiveAssist(
+            emit=sess.emit,
+            llm=llm,
+            meeting_language=meeting.language,
+            context=active.context_for(meeting.id),
+            copilot_remaining=settings.copilot_requests_per_month - int(copilot_used),
+            max_context_chars=settings.copilot_max_context_chars,
+            max_output_tokens=settings.copilot_max_output_tokens,
+            policy=AutoAnswerPolicy(
+                min_interval=settings.copilot_auto_min_interval_seconds,
+                max_per_minute=settings.copilot_auto_max_per_minute,
+            ),
+        ),
     )
     try:
         await session.run()

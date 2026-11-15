@@ -8,6 +8,44 @@ from app.providers.stt.base import STTError
 from app.realtime.events import AudioSource, TranscriptSegment
 
 FRAME_MS = 20
+
+# Scripted meeting lines (placeholder content; the app labels the provider as "fake").
+# Includes questions directed at the user, a general question and a tag question, so the
+# live-assistance features can be exercised end to end.
+SCRIPT: dict[str, dict[str, list[str]]] = {
+    "pt": {
+        "system": [
+            "Bom dia a todos, vamos começar a reunião.",
+            "O módulo de pagamentos está quase pronto.",
+            "Você pode explicar como funciona a integração com o banco?",
+            "Certo?",
+            "Qual é o prazo para a entrega do módulo?",
+            "Precisamos fechar os testes até sexta-feira.",
+            "Qual é a sua experiência com Kubernetes?",
+        ],
+        "microphone": [
+            "Claro, posso explicar.",
+            "A integração usa a API do banco com autenticação mútua.",
+            "Acho que conseguimos entregar na sexta.",
+        ],
+    },
+    "en": {
+        "system": [
+            "Good morning everyone, let's get started.",
+            "The payments module is almost ready.",
+            "Can you explain how the bank integration works?",
+            "Right?",
+            "What is the deadline for the module?",
+            "We need to finish testing by Friday.",
+            "What is your experience with Kubernetes?",
+        ],
+        "microphone": [
+            "Sure, I can explain.",
+            "The integration uses the bank API with mutual TLS.",
+            "I think we can deliver on Friday.",
+        ],
+    },
+}
 PARTIAL_EVERY = 25  # frames (0.5 s)
 FINAL_EVERY = 100  # frames (2 s)
 
@@ -41,17 +79,11 @@ class FakeSTTSession:
 
     def _make(self, *, final: bool) -> TranscriptSegment:
         label = "pt" if self.language.startswith("pt") else "en"
-        who = {
-            "system": {"pt": "outros", "en": "others"},
-            "microphone": {"pt": "você", "en": "you"},
-        }
-        text = (
-            f"[fake STT] segmento {self._segment + 1} ({who[self.source][label]})"
-            if label == "pt"
-            else f"[fake STT] segment {self._segment + 1} ({who[self.source][label]})"
-        )
+        lines = SCRIPT[label][self.source]
+        text = lines[self._segment % len(lines)]
         if not final:
-            text += " …"
+            words = text.split()
+            text = " ".join(words[: max(1, len(words) * 3 // 5)]) + " …"
         return TranscriptSegment(
             segment_id=f"{self.source}-{self._segment}",
             source=self.source,
