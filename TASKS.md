@@ -31,24 +31,26 @@ Last updated: 2026-11-14. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 | Backend ruff, mypy `--strict`, pytest -W error (16 tests), uvicorn boot + curl | ✅ |
 | Desktop app launched under Xvfb: onboarding → demo capture → overlay pause → global shortcut pause → stop from overlay → unsupported-source error shown | ✅ |
 | `docker compose config` | ✅ |
+| **GitHub Actions CI (run 43658671472)** — all 5 jobs green | ✅ |
+| Windows runner: clippy, 27 Rust tests, probe detects `WASAPI loopback`, `.msi` + `-setup.exe` built | ✅ |
+| macOS runner (arm64): clippy, 27 Rust tests, probe detects macOS version and selects `CoreAudio process tap` (objc2 code executed on real macOS), `.app` + `.dmg` built | ✅ |
 
 ## ⛔ Blocked / not verifiable in the build environment
 
 - ⛔ **Real system-audio capture on Windows and macOS hardware** — no Windows/macOS machine
-  available here. Code compiles against real OS bindings; runtime behavior is unverified.
+  available here. CI runners have no sound devices, so they prove build, tests and backend
+  detection, not actual capture. Installers to test with are in the CI run artifacts.
   → Run `docs/AUDIO_CAPTURE.md` test plan. Owner action needed.
-- ⛔ CI has not run yet (repository not pushed to GitHub).
 - ⛔ Backend Docker image not built (no Docker daemon in build environment); compose file validated only.
 - ⛔ macOS signing/notarization (needs Apple Developer account); unsigned apps can behave differently with privacy permissions.
 
 ## ⏭ Next (Slice 1b → 2)
 
-1. Push to GitHub, get CI green on Windows + macOS.
-2. Execute hardware test plan; fix issues; record screen-sharing results.
-3. Choose STT vendor after checking current API/pricing/retention (decision needed from owner).
-4. Minimal auth + authenticated realtime WebSocket + STT adapter + transcript UI.
-5. First-use consent screen before any audio leaves the device.
-6. Add ESLint + Prettier to the frontend (currently `tsc --strict` only).
+1. Execute hardware test plan; fix issues; record screen-sharing results.
+2. Choose STT vendor after checking current API/pricing/retention (decision needed from owner).
+3. Minimal auth + authenticated realtime WebSocket + STT adapter + transcript UI.
+4. First-use consent screen before any audio leaves the device.
+5. Add ESLint + Prettier to the frontend (currently `tsc --strict` only).
 
 ## Known limitations / tech debt
 
