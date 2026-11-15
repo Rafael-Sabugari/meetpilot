@@ -1,11 +1,23 @@
-import type { CopilotAnswer, CopilotMode, TranscriptSegment } from "@meetpilot/shared-types";
+import type {
+  AnswerCompletedPayload,
+  AnswerFailedPayload,
+  AnswerStartedPayload,
+  CopilotAnswer,
+  CopilotMode,
+  RealtimeEnvelope,
+  TranscriptSegment,
+} from "@meetpilot/shared-types";
 import type { TranscriptState } from "./transcript";
 
 export const MAX_ITEMS = 30;
 
+/** "auto" = suggestion the server made by itself for a question someone asked. */
+export type ItemMode = CopilotMode | "auto";
+
 export interface CopilotItem {
-  id: number;
-  mode: CopilotMode;
+  /** Manual requests: `m-<n>`; automatic suggestions: the server's question id. */
+  id: string;
+  mode: ItemMode;
   question: string | null;
   status: "pending" | "done" | "failed";
   answer?: CopilotAnswer;
@@ -20,10 +32,13 @@ export interface CopilotState {
 export const emptyCopilot: CopilotState = { items: [] };
 
 export type CopilotAction =
-  | { kind: "pending"; id: number; mode: CopilotMode; question: string | null }
-  | { kind: "failed"; id: number; error: string }
-  | { kind: "answer"; id: number; mode: CopilotMode; question: string | null; answer: CopilotAnswer }
+  | { kind: "pending"; id: string; mode: ItemMode; question: string | null }
+  | { kind: "failed"; id: string; error: string; mode?: ItemMode; question?: string | null }
+  | { kind: "answer"; id: string; mode: ItemMode; question: string | null; answer: CopilotAnswer }
+  | { kind: "server"; envelope: RealtimeEnvelope }
   | { kind: "clear" };
+
+export const manualId = (n: number): string => `m-${n}`;
 
 export function copilotReducer(state: CopilotState, action: CopilotAction): CopilotState {
   switch (action.kind) {
@@ -34,8 +49,20 @@ export function copilotReducer(state: CopilotState, action: CopilotAction): Copi
       const item: CopilotItem = { id: action.id, mode: action.mode, question: action.question, status: "pending" };
       return { items: [item, ...state.items].slice(0, MAX_ITEMS) };
     }
-    case "failed":
+    case "failed": {
+      if (!state.items.some((i) => i.id === action.id)) {
+        // Failure without a pending item (e.g. quota reached before the request started).
+        const item: CopilotItem = {
+          id: action.id,
+          mode: action.mode ?? "ask",
+          question: action.question ?? null,
+          status: "failed",
+          error: action.error,
+        };
+        return { items: [item, ...state.items].slice(0, MAX_ITEMS) };
+      }
       return { items: state.items.map((i) => (i.id === action.id ? { ...i, status: "failed", error: action.error } : i)) };
+    }
     case "answer": {
       const done: CopilotItem = {
         id: action.id,
@@ -48,9 +75,34 @@ export function copilotReducer(state: CopilotState, action: CopilotAction): Copi
       const items = exists ? state.items.map((i) => (i.id === action.id ? done : i)) : [done, ...state.items];
       return { items: items.slice(0, MAX_ITEMS) };
     }
+    case "server": {
+      const env = action.envelope;
+      if (env.v !== 1) return state;
+      switch (env.type) {
+        case "answer.started": {
+          const p = env.payload as AnswerStartedPayload;
+          return copilotReducer(state, { kind: "pending", id: p.question_id, mode: "auto", question: p.question });
+        }
+        case "answer.completed": {
+          const { question_id, question, ...answer } = env.payload as AnswerCompletedPayload;
+          return copilotReducer(state, { kind: "answer", id: question_id, mode: "auto", question, answer });
+        }
+        case "answer.failed": {
+          const p = env.payload as AnswerFailedPayload;
+          return copilotReducer(state, {
+            kind: "failed",
+            id: p.question_id,
+            error: p.message,
+            mode: "auto",
+            question: p.question ?? null,
+          });
+        }
+        default:
+          return state;
+      }
+    }
   }
 }
-
 export interface ContextSegment {
   source: TranscriptSegment["source"];
   text: string;

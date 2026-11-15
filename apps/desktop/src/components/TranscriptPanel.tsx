@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { LinkStatus } from "@meetpilot/shared-types";
 import type { MessageKey } from "../lib/i18n";
-import { formatClock, transcriptAsText, type TranscriptState } from "../lib/transcript";
+import { formatClock, transcriptAsText, type TranscriptState, type TranslationView } from "../lib/transcript";
 
 type T = (k: MessageKey) => string;
 
@@ -21,8 +21,17 @@ export function linkLabel(t: T, link: LinkStatus | null): { text: string; tone: 
   }
 }
 
-export function TranscriptPanel(props: { t: T; state: TranscriptState; droppedFrames: number }) {
-  const { t, state, droppedFrames } = props;
+const VIEWS: TranslationView[] = ["both", "translation", "original"];
+
+export function TranscriptPanel(props: {
+  t: T;
+  state: TranscriptState;
+  droppedFrames: number;
+  view?: TranslationView;
+  onViewChange?: (v: TranslationView) => void;
+}) {
+  const { t, state, droppedFrames, view = "both", onViewChange } = props;
+  const hasTranslations = Object.keys(state.translations).length > 0;
   const labels = { system: t("tx.others"), microphone: t("tx.you") };
   const end = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
@@ -37,6 +46,13 @@ export function TranscriptPanel(props: { t: T; state: TranscriptState; droppedFr
       <div className="row-between">
         <h2>{t("tx.title")}</h2>
         <div className="row">
+          {hasTranslations && onViewChange && (
+            <select aria-label={t("live.view")} value={view} onChange={(e) => onViewChange(e.target.value as TranslationView)}>
+              {VIEWS.map((v) => (
+                <option key={v} value={v}>{t(`live.view.${v}` as MessageKey)}</option>
+              ))}
+            </select>
+          )}
           {link && <span className={`pill pill--${link.tone}`} data-testid="link-status">{link.text}</span>}
           <button
             className="btn btn--small"
@@ -59,13 +75,27 @@ export function TranscriptPanel(props: { t: T; state: TranscriptState; droppedFr
       ))}
       <div className="transcript" aria-live="polite">
         {state.finals.length === 0 && partials.length === 0 && <p className="muted">{t("tx.empty")}</p>}
-        {state.finals.map((s) => (
-          <p key={`${s.segment_id}-${s.end_ms}`} className={`line line--${s.source}`}>
-            <span className="line__time">{formatClock(s.start_ms)}</span>
-            <span className="line__who">{labels[s.source]}</span>
-            <span>{s.text}</span>
-          </p>
-        ))}
+        {state.finals.map((s) => {
+          const tr = state.translations[s.segment_id];
+          const showOriginal = !tr || view !== "translation";
+          const showTranslation = !!tr && view !== "original";
+          const question = state.questions.includes(s.segment_id);
+          return (
+            <div key={`${s.segment_id}-${s.end_ms}`} className={`line line--${s.source}${question ? " line--question" : ""}`}>
+              <span className="line__time">{formatClock(s.start_ms)}</span>
+              <span className="line__who">{labels[s.source]}</span>
+              <span className="line__body">
+                {question && <span className="pill pill--accent small">{t("live.question")}</span>}{" "}
+                {showOriginal && <span>{s.text}</span>}
+                {showTranslation && (
+                  <span className={showOriginal ? "line__tr" : ""} data-testid="translation">
+                    {tr}
+                  </span>
+                )}
+              </span>
+            </div>
+          );
+        })}
         {partials.map((s) => (
           <p key={`partial-${s!.source}`} className={`line line--${s!.source} line--partial`}>
             <span className="line__time">{formatClock(s!.start_ms)}</span>

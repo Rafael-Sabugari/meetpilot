@@ -20,11 +20,17 @@ export function GroundingBadge({ t, grounding }: { t: T; grounding: Grounding })
 
 export function AnswerCard({ t, item, compact }: { t: T; item: CopilotItem; compact?: boolean }) {
   const [copied, setCopied] = useState(false);
-  const title =
-    item.mode === "ask" ? item.question : t(`copilot.mode.${item.mode}` as MessageKey);
+  const auto = item.mode === "auto";
+  const title = item.mode === "ask" ? item.question : t(`copilot.mode.${item.mode}` as MessageKey);
   return (
-    <article className={`answer${compact ? " answer--compact" : ""}`} aria-live="polite">
-      {!compact && <p className="answer__q">{title}</p>}
+    <article className={`answer${compact ? " answer--compact" : ""}${auto ? " answer--auto" : ""}`} aria-live="polite">
+      {auto ? (
+        <p className="answer__q" data-testid="auto-question">
+          <span className="pill pill--accent">{t("copilot.mode.auto")}</span> {item.question}
+        </p>
+      ) : (
+        !compact && <p className="answer__q">{title}</p>
+      )}
       {item.status === "pending" && <p className="muted">{t("copilot.thinking")}</p>}
       {item.status === "failed" && <p className="error-text">{item.error}</p>}
       {item.status === "done" && item.answer && (
@@ -61,10 +67,12 @@ export function CopilotPanel(props: {
   copilot: ReturnType<typeof useCopilot>;
   transcript: TranscriptState;
   enabled: boolean;
+  /** Shared with automatic suggestions, so it lives in the parent. */
+  tone: CopilotTone;
+  onToneChange: (tone: CopilotTone) => void;
 }) {
-  const { t, copilot, transcript, enabled } = props;
+  const { t, copilot, transcript, enabled, tone, onToneChange: setTone } = props;
   const [question, setQuestion] = useState("");
-  const [tone, setTone] = useState<CopilotTone>("natural");
   const [error, setError] = useState<string | null>(null);
   const latest = copilot.state.items.find((i) => i.status === "done")?.answer;
 

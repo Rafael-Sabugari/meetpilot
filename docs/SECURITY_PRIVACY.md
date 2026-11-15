@@ -45,6 +45,9 @@ meetings. Privacy is a product feature, built in from the first slice.
 | Copilot: OpenAI requests sent with `store: false`; provider error bodies (which may echo prompts) are never surfaced or logged | `providers/llm/openai.py` | `test_openai_adapter_request_shape_and_parsing`, `test_openai_http_errors` |
 | Copilot never invents the user's facts; placeholders force "Needs confirmation"; transcript treated as untrusted input | `app/ai/copilot.py` | `test_placeholders_force_needs_confirmation`, `test_instructions_encode_the_product_rules` |
 | Copilot only for the meeting owner; monthly and per-minute limits | `app/ai/router.py` | `test_other_users_cannot_use_my_meeting`, `test_monthly_and_per_minute_limits` |
+| Live assistance: rolling context kept in server RAM only for the active meeting (≤ 400 lines), removed on finish/delete; questions, answers and translations are never stored or logged — only counters | `app/realtime/assist.py`, `meetings/router.py` | `test_finishing_a_meeting_forgets_its_live_context`; e2e DB check (usage rows only) |
+| Automatic suggestions can be turned off at any time, also mid-meeting; they respect the copilot quota and rate limits | `assist.py`, `questions.py`, `LiveAssistOptions.tsx` | `test_all_mode_includes_general_questions_and_off_disables`, `test_auto_answers_respect_the_monthly_quota`; e2e |
+| Translation prompt treats transcript text as untrusted and only translates | `app/ai/translation.py` | code review |
 | UI states that suggestions can be wrong | `CopilotPanel.tsx` | component test |
 | Error events never include audio or transcript text | `gateway.py` | `test_provider_failure_is_reported_as_retryable_error` |
 | `mp-audio-probe --wav` writes audio only when explicitly requested (dev tool) | `mp-audio-probe.rs` | code review |

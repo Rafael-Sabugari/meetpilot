@@ -359,3 +359,33 @@ async fn invalid_frames_are_rejected_locally() {
     h.stop().await;
     assert_eq!(log.lock().unwrap().bad_frames, 0);
 }
+
+#[tokio::test]
+async fn live_settings_are_sent_and_resent_after_reconnect() {
+    let (url, log) = mock_gateway(Behaviour::DropFirstAfter(30)).await;
+    let (_c, sink) = collector();
+    let (tokens, _) = counting_tokens();
+    let h = spawn_stream(fast(url), "initial".into(), tokens, sink);
+    h.set_settings(serde_json::json!({"auto_suggestions": "all", "translate_to": "en"}));
+    for i in 0..120u32 {
+        h.send_frame(Source::System, i, &PCM);
+        if i % 20 == 0 {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    }
+    assert!(
+        wait_for(|| {
+            let g = log.lock().unwrap();
+            g.frames_per_conn.len() >= 2
+                && g.controls
+                    .iter()
+                    .filter(|c| c.as_str() == "copilot.settings")
+                    .count()
+                    >= 2
+        })
+        .await,
+        "settings re-sent on the new connection: {:?}",
+        log.lock().unwrap().controls
+    );
+    h.stop().await;
+}

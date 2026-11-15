@@ -45,10 +45,17 @@ to tune the prompt (accuracy, refusal to invent facts, latency).
 Set aside by the owner on 2026-11-15. Tested engine (segmenter, decode queue, verified model
 downloads, whisper.cpp backend) is on local branch `wip/whisper-private-mode`.
 
-## ▶ Slice 4 — Copilot intelligence (Sprint 4)
+## ✅ Slice 4 — Copilot intelligence (Sprint 4)
 
-Question detection (staged, debounced), suggested answers, PT ↔ EN translation with
-original/translated views, echo/duplicate handling between mic and system streams.
+Question detection on the others' audio (PT/EN heuristic, directed vs general), automatic
+suggested answers in the overlay and main window (debounced, deduplicated, rate limited,
+quota aware), PT ↔ EN translation of final lines with original/translation/both views,
+options changeable mid-meeting and re-sent after reconnects. Verified end-to-end with fake
+providers.
+
+**Remaining:** tune detection and translation with real OpenAI/Deepgram runs on real meeting
+audio (false positives/negatives, latency); echo/duplicate handling when the user's mic also
+picks up the speakers (no headphones).
 
 ## Slice 5 — Overlay modes (Sprint 5)
 

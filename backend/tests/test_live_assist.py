@@ -81,6 +81,8 @@ def test_directed_questions_get_automatic_suggestions(tmp_path: Path) -> None:
         started = of(events, "answer.started")
         completed = of(events, "answer.completed")
         assert [a["question_id"] for a in completed] == [s["question_id"] for s in started]
+        assert [a["question_id"] for a in completed] == [d["question_id"] for d in detected]
+        assert len({d["question_id"] for d in detected}) == 2
         assert len(completed) == 2
         first = completed[0]
         assert first["question"] == detected[0]["text"]
@@ -195,3 +197,22 @@ def test_english_meeting(tmp_path: Path, language: str) -> None:
             "What is your experience with Kubernetes?",
         ]
         assert "English" in llm.calls[0]["instructions"]
+
+
+def test_deferred_answer_keeps_the_detected_question_id(tmp_path: Path) -> None:
+    """With a long minimum interval the second question waits; its answer must still carry
+    the id announced in question.detected so the overlay can match them."""
+    llm = FakeLLMProvider()
+    s = Settings(
+        env="test",
+        jwt_secret="k" * 40,
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'live.db'}",
+        copilot_auto_min_interval_seconds=3600,
+    )
+    with TestClient(create_app(s, stt_provider=FakeSTTProvider(), llm_provider=llm)) as c:
+        auth = register_and_login(c)
+        events = run_meeting(c, auth)
+        detected = {d["question_id"] for d in of(events, "question.detected")}
+        answered = [a["question_id"] for a in of(events, "answer.completed")]
+        assert len(answered) == 1, "rate limit holds the second question"
+        assert set(answered) <= detected

@@ -183,6 +183,30 @@ answer + grounding ◄── copilot://answer (main window and overlay) ◄─�
 * Cost controls: monthly request quota per plan, per-minute rate limit, bounded context and
   output tokens; tokens metered per request.
 
+## 3.7 Live assistance (slice 4)
+
+```text
+STT final line ─► LiveAssist (per stream, in memory)
+                   ├─ rolling context (last 400 lines per meeting, RAM only; dropped on finish/delete)
+                   ├─ question detector (app/ai/questions.py, heuristic PT/EN, no LLM call)
+                   │    └─ AutoAnswerPolicy (one in flight, debounce, dedupe, per-minute cap)
+                   │         └─ copilot.ask(...) ─► answer.started / completed / failed
+                   └─ translation queue (finals only, bounded) ─► LLM ─► translation.updated
+desktop: copilot.settings ─► LiveAssist.update_settings   (re-sent by the client after reconnects)
+```
+
+* **Detection is a cheap heuristic** (trailing "?" or a request opener, plus second-person
+  cues for "directed"), so no LLM call is spent on lines that are not questions. Only the
+  *others* stream (system audio) is checked: the user's own questions are not answered.
+* Auto answers reuse the Ask-Copilot prompt rules and grounding enforcement; they share the
+  monthly copilot quota with manual questions and are metered the same way
+  (`copilot_request`, tokens). Translations are metered as `translation_request`.
+* Question ids derive from the segment id (`q-<source>-<start_ms>`), which stays unique across
+  reconnects, so a deferred answer always matches the detection the overlay showed.
+* The server keeps the live context only in memory for the meeting's duration; manual
+  Ask-Copilot requests still send their own context from the desktop (server stays
+  stateless for them).
+
 ## 4. Backend (`backend/`)
 
 FastAPI modular monolith; modules are packages under `app/` and are extracted only when

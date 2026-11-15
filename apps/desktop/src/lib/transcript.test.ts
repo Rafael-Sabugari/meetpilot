@@ -115,3 +115,31 @@ it("drops interim text when the link ends", () => {
   expect(s.partials).toEqual({});
   expect(s.link?.state).toBe("failed");
 });
+
+describe("translation and detected questions", () => {
+  it("attaches translations to their final line, in recent lines and in the export", () => {
+    let s = apply(emptyTranscript, env("transcript.final", seg("system", "Bom dia a todos.", true, 0)));
+    s = apply(s, env("translation.updated", { segment_id: "system-0", source: "system", target_language: "en", text: "Good morning, everyone." }));
+    expect(s.translations["system-0"]).toBe("Good morning, everyone.");
+    expect(recentLines(s, 2)[0]).toMatchObject({ text: "Bom dia a todos.", translation: "Good morning, everyone." });
+    expect(transcriptAsText(s, { system: "Outros" })).toContain("→ Good morning, everyone.");
+  });
+
+  it("ignores empty translations and bounds them", () => {
+    let s = apply(emptyTranscript, env("translation.updated", { segment_id: "x", source: "system", target_language: "en", text: " " }));
+    expect(s.translations).toEqual({});
+    for (let i = 0; i < MAX_FINAL_SEGMENTS + 10; i++)
+      s = apply(s, env("translation.updated", { segment_id: `s-${i}`, source: "system", target_language: "en", text: "t" }));
+    expect(Object.keys(s.translations)).toHaveLength(MAX_FINAL_SEGMENTS);
+    expect(s.translations["s-0"]).toBeUndefined();
+  });
+
+  it("marks detected questions once and clears them for a new meeting", () => {
+    let s = apply(emptyTranscript, env("question.detected", { question_id: "q-system-0", segment_id: "system-0", text: "?", directed: true }));
+    s = apply(s, env("question.detected", { question_id: "q-system-0", segment_id: "system-0", text: "?", directed: true }));
+    expect(s.questions).toEqual(["system-0"]);
+    s = transcriptReducer(s, { kind: "link", status: { state: "connecting" } });
+    expect(s.questions).toEqual([]);
+    expect(s.translations).toEqual({});
+  });
+});

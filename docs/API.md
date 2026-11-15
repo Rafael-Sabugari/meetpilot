@@ -16,6 +16,10 @@ All return JSON; errors are `{ kind, message, detail? }` where `detail` is a `Ca
 | `get_capture_status` | – | `CaptureStatus & { demo }` |
 | `set_overlay_protection` | `{ enabled }` | `boolean` |
 | `set_overlay_shown` | `{ visible }` | – |
+| `set_live_options` | `{ options: { autoSuggestions: "off" \| "directed" \| "all", tone, translateTo: "pt-BR" \| "en" \| null } }` | – (sent to the server now and after every reconnect) |
+
+`start_capture` also accepts `transcription: { language, live?: LiveOptions }` to start a
+transcribed meeting with those options. Values are validated in Rust before anything is sent.
 
 Events: `capture://status` (`CaptureStatus`), `capture://level` (`LevelReading`),
 `capture://error` (`CaptureError`). Types: `packages/shared-types/src/capture.ts`.
@@ -77,9 +81,26 @@ or answer text is stored or logged. Works for active and finished meetings.
 1. Client sends, within 5 s: `{"type": "auth", "token": "<stream_token>"}`.
 2. Server replies `capture.started` `{audio_format, provider, remaining_seconds}`.
 3. Client sends binary frames: `[u8 source 0=system 1=microphone][u32 LE seq][640 B PCM s16le 16 kHz mono]` (645 bytes, 20 ms).
-4. Client control (text): `capture.paused`, `capture.resumed`, `capture.stopped`.
+4. Client control (text): `capture.paused`, `capture.resumed`, `capture.stopped`, and
+   `{"type": "copilot.settings", "auto_suggestions": "off"|"directed"|"all", "tone": "natural"|"concise"|"technical"|"formal", "translate_to": "pt-BR"|"en"|null}`
+   (any time; invalid values get an `error` with code `bad_settings`, the stream stays open).
+   Defaults: `directed`, `natural`, no translation.
 5. Server events (envelope `{v:1, type, meeting_id, seq, ts, payload}`):
    * `transcript.partial` / `transcript.final` — `TranscriptSegment {segment_id, source, text, language, start_ms, end_ms, is_final}`; times are meeting-audio-relative (stable across reconnects).
+   * `question.detected` — `{question_id, segment_id, text, directed}`: a final line from
+     *others* (system audio) that is a question; with `directed` only questions aimed at the
+     user (second person, or requests like "pode explicar…"/"can you…") are reported.
+     Tag questions ("Certo?", "right?") and very short ones are ignored.
+   * `answer.started` / `answer.completed` / `answer.failed` — automatic suggestion for a
+     detected question, same `question_id`. `completed` carries the Ask-Copilot answer shape
+     (`answer, grounding, explanation, missing_info, provider, requests_remaining`) plus
+     `question`. `failed`: `{question_id, question, code: "llm_error"|"copilot_quota", message, retryable}`.
+     Limits: one answer in flight (newest waiting question wins), ≥ 6 s apart, ≤ 6 per
+     minute, the same question is not answered twice within 60 s, questions older than 20 s
+     are dropped. Each answer counts as one copilot request.
+   * `translation.updated` — `{segment_id, source, target_language, text}`: translation of
+     one final line (never partials, never twice). Skipped when the meeting language already
+     is the target. Backlog capped at 20 lines (an `error` `translation_backlog` is sent once).
    * `usage.updated` every 10 s — `{session_seconds, remaining_seconds}`.
    * `capture.paused` / `capture.resumed` acknowledgements; `capture.stopped` after final segments were flushed.
    * `error` — `{code: "stt_error"|"quota_exceeded"|"backpressure", message, retryable}` (never contains audio or transcript text).

@@ -12,9 +12,11 @@ in a private overlay.
 
 ## Status
 
-Slices 1–3 of the roadmap: local audio capture (Windows/macOS), **live transcription**
-through the MeetPilot backend (Deepgram Nova-3, PT-BR/EN), and **Ask Copilot** (suggested
-replies, summaries and questions about the conversation, with source labels; OpenAI).
+Slices 1–4 of the roadmap: local audio capture (Windows/macOS), **live transcription**
+through the MeetPilot backend (Deepgram Nova-3, PT-BR/EN), **Ask Copilot** (suggested
+replies, summaries and questions about the conversation, with source labels; OpenAI), and
+**live assistance**: questions asked to you are detected and a suggested answer appears by
+itself in the overlay, plus PT ↔ EN translation of the transcript.
 See [`TASKS.md`](TASKS.md) for exactly what is implemented, tested and still blocked.
 
 ## Repository
@@ -98,6 +100,10 @@ In the app, during or after a transcribed capture: **How do I answer?**, **Summa
 far**, or type a question. The overlay has a one-click **How do I answer?**. Each answer is
 labelled *From the conversation*, *General suggestion* or *Needs confirmation*; the copilot
 never invents your experience or credentials (it uses `[placeholders]` instead).
+
+**Automatic suggestions** (default: only questions asked to you) and **Translate transcript
+to** are next to the transcription switch and can be changed during the meeting. Each
+automatic suggestion counts as one copilot question.
 
 ## Checks
 

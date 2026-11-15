@@ -6,6 +6,7 @@ import type {
   CopilotTone,
   Language,
   LinkStatus,
+  LiveOptions,
   RealtimeEnvelope,
   AudioSource,
   CaptureError,
@@ -82,7 +83,7 @@ export interface StartRequest {
   microphone: SourceSelection | null;
   demo: boolean;
   /** Present only when the user enabled live transcription (sends audio to the server). */
-  transcription?: { language: Language } | null;
+  transcription?: { language: Language; live?: LiveOptions } | null;
 }
 
 export const isTauri = (): boolean =>
@@ -106,6 +107,7 @@ export const api = {
   setOverlayProtection: (enabled: boolean) =>
     invoke<boolean>("set_overlay_protection", { enabled }),
   setOverlayShown: (visible: boolean) => invoke<void>("set_overlay_shown", { visible }),
+  setLiveOptions: (options: LiveOptions) => invoke<void>("set_live_options", { options }),
   login: (credentials: Credentials) => invoke<AccountInfo>("account_login", { credentials }),
   register: (credentials: Credentials) => invoke<AccountInfo>("account_register", { credentials }),
   logout: () => invoke<void>("account_logout"),

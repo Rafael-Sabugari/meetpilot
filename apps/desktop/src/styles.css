@@ -108,7 +108,7 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .line--partial { color: var(--muted); font-style: italic; }
 .tx-options { display: grid; gap: 6px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
 .overlay__lines { display: grid; gap: 3px; font-size: 13px; line-height: 1.35; overflow: hidden; }
-.overlay__lines p { margin: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.overlay__lines p { margin: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .overlay__lines .who { font-weight: 600; margin-right: 6px; }
 .form .controls { flex-wrap: wrap; align-items: center; }
 .btn { white-space: nowrap; }
@@ -125,3 +125,11 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .answer--compact .answer__text { font-size: 13px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .warn-text { color: #fcd34d; }
 .overlay__copilot { display: grid; gap: 6px; }
+
+/* Live assistance (automatic suggestions, translation) */
+.pill--accent { background: #1e2a4a; color: #a5b4fc; }
+.live-options { display: grid; gap: 6px; margin: 6px 0 10px; }
+.line__body { display: block; }
+.line__tr { display: block; color: var(--muted); font-style: italic; }
+.line--question { background: rgba(165, 180, 252, 0.06); border-radius: 6px; }
+.answer--auto { border-left: 3px solid #a5b4fc; }

@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import logging
 import time
+import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -73,7 +74,8 @@ class LiveAssist:
         self.clock = clock
         self.settings = LiveSettings()
         self.usage: list[UsageItem] = []
-        self._question_seq = 0
+        # Question text -> id of the detection event, so a deferred answer reuses its id.
+        self._question_ids: dict[str, str] = {}
         self._tasks: set[asyncio.Task[None]] = set()
         self._translations: asyncio.Queue[TranscriptSegment] = asyncio.Queue(
             self.MAX_TRANSLATION_BACKLOG
@@ -103,8 +105,11 @@ class LiveAssist:
         if seg.source == "system":
             a = assess(text)
             if should_answer(a, self.settings.auto_suggestions):
-                self._question_seq += 1
-                qid = f"q{self._question_seq}"
+                # Derived from the segment id, which stays unique across reconnects.
+                qid = f"q-{seg.segment_id}"
+                self._question_ids[text] = qid
+                while len(self._question_ids) > 50:
+                    self._question_ids.pop(next(iter(self._question_ids)))
                 await self.emit(
                     EventType.QUESTION_DETECTED,
                     {
@@ -120,8 +125,10 @@ class LiveAssist:
     async def tick(self) -> None:
         nxt = self.policy.tick(self.clock())
         if nxt is not None:
-            self._question_seq += 1
-            self._spawn(self._answer(f"q{self._question_seq}", nxt))
+            self._spawn(self._answer(self._qid(nxt), nxt))
+
+    def _qid(self, text: str) -> str:
+        return self._question_ids.get(text) or f"q-{uuid.uuid4().hex[:12]}"
 
     # -- answers ------------------------------------------------------------------------
 
@@ -205,8 +212,7 @@ class LiveAssist:
         finally:
             nxt = self.policy.finished(self.clock())
             if nxt is not None:
-                self._question_seq += 1
-                self._spawn(self._answer(f"q{self._question_seq}", nxt))
+                self._spawn(self._answer(self._qid(nxt), nxt))
 
     # -- translation --------------------------------------------------------------------
 

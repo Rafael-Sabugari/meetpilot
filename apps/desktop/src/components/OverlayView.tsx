@@ -5,11 +5,13 @@ import { useTranscript } from "../hooks/useTranscript";
 import { recentLines } from "../lib/transcript";
 import { useCopilot } from "../hooks/useCopilot";
 import { AnswerCard } from "./CopilotPanel";
+import { loadLivePrefs } from "../lib/liveOptions";
 import { CaptureIndicator } from "./CaptureIndicator";
 
 /**
- * Private, always-on-top overlay. In this slice it is the persistent capture indicator with
- * immediate pause/stop controls; transcript and suggestions are added in later slices.
+ * Private, always-on-top overlay: capture indicator with immediate pause/stop, the last
+ * transcript lines (with translation) and the latest suggestion, including the ones made
+ * automatically when someone asks the user a question.
  */
 export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
   const cap = useCapture();
@@ -19,6 +21,8 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
   const copilot = useCopilot();
   const latest = copilot.state.items[0];
   const live = transcript.state.link?.state === "connected";
+  // Read on every render: cheap, and picks up changes made in the main window.
+  const prefs = loadLivePrefs();
   return (
     <main className="overlay" data-tauri-drag-region>
       <div className="overlay__row" data-tauri-drag-region>
@@ -53,7 +57,7 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
             <button
               className="btn btn--small"
               disabled={copilot.pending}
-              onClick={() => copilot.ask("reply", null, "natural", transcript.state)}
+              onClick={() => copilot.ask("reply", null, prefs.tone, transcript.state)}
             >
               💬 {t("copilot.reply")}
             </button>
@@ -63,12 +67,16 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
       )}
       {lines.length > 0 && (
         <div className="overlay__lines" aria-live="polite">
-          {lines.map((l, i) => (
-            <p key={i} className={l.final ? "" : "line--partial"}>
-              <span className="who">{l.source === "system" ? t("tx.others") : t("tx.you")}</span>
-              {l.text}
-            </p>
-          ))}
+          {lines.map((l, i) => {
+            const tr = prefs.translationView !== "original" ? l.translation : undefined;
+            return (
+              <p key={i} className={l.final ? "" : "line--partial"}>
+                <span className="who">{l.source === "system" ? t("tx.others") : t("tx.you")}</span>
+                {(!tr || prefs.translationView === "both") && l.text}
+                {tr && <span className={prefs.translationView === "both" ? "line__tr" : ""}>{tr}</span>}
+              </p>
+            );
+          })}
         </div>
       )}
     </main>

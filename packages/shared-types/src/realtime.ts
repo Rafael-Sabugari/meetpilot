@@ -83,3 +83,44 @@ export interface CopilotAnswer {
   provider: string;
   requests_remaining: number;
 }
+
+/** Live assistance during a transcribed meeting (`copilot.settings` control message). */
+export type AutoSuggestions = "off" | "directed" | "all";
+export type TranslateTo = "pt-BR" | "en";
+
+export interface LiveOptions {
+  autoSuggestions: AutoSuggestions;
+  tone: CopilotTone;
+  translateTo: TranslateTo | null;
+}
+
+/** `question.detected`: someone else asked a question (directed = aimed at the user). */
+export interface QuestionDetectedPayload {
+  question_id: string;
+  segment_id: string;
+  text: string;
+  directed: boolean;
+}
+
+export interface AnswerStartedPayload {
+  question_id: string;
+  question: string;
+}
+
+export type AnswerCompletedPayload = CopilotAnswer & { question_id: string; question: string };
+
+export interface AnswerFailedPayload {
+  question_id: string;
+  question?: string;
+  code: string;
+  message: string;
+  retryable: boolean;
+}
+
+/** `translation.updated`: translation of one final transcript line. */
+export interface TranslationPayload {
+  segment_id: string;
+  source: TranscriptSegment["source"];
+  target_language: TranslateTo;
+  text: string;
+}

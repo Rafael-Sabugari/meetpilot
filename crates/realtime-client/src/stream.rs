@@ -10,6 +10,7 @@
 //! * Frames written just before a connection drop may never reach the server, so the last
 //!   `replay_frames` sent frames are re-sent after reconnecting; the gateway discards any
 //!   frame whose sequence number it has already seen (no double transcription or billing).
+//! * Live-assist settings (`set_settings`) are re-sent after every reconnect.
 
 use std::collections::VecDeque;
 use std::future::Future;
@@ -121,7 +122,22 @@ impl StreamConfig {
 enum Control {
     Pause,
     Resume,
+    Settings(serde_json::Value),
     Stop(oneshot::Sender<()>),
+}
+
+/// Build the `copilot.settings` control message from a JSON object of options.
+pub fn settings_message(options: &serde_json::Value) -> serde_json::Value {
+    let mut msg = serde_json::Map::new();
+    if let Some(obj) = options.as_object() {
+        for (k, v) in obj {
+            if k != "type" {
+                msg.insert(k.clone(), v.clone());
+            }
+        }
+    }
+    msg.insert("type".into(), "copilot.settings".into());
+    serde_json::Value::Object(msg)
 }
 
 pub struct StreamHandle {
@@ -161,6 +177,14 @@ impl StreamHandle {
         let _ = self.control.send(Control::Resume);
     }
 
+    /// Update live-assist options (automatic suggestions, tone, translation). Sent now if
+    /// connected and again after every reconnect.
+    pub fn set_settings(&self, options: serde_json::Value) {
+        let _ = self
+            .control
+            .send(Control::Settings(settings_message(&options)));
+    }
+
     /// Ask the server to finish (flushing final transcripts) and wait for the link to close.
     pub async fn stop(&self) {
         let (tx, rx) = oneshot::channel();
@@ -189,6 +213,7 @@ pub fn spawn_stream(
         audio: audio_rx,
         control: ctrl_rx,
         paused: false,
+        settings: None,
         stop_ack: None,
         replay: VecDeque::new(),
     };
@@ -225,6 +250,7 @@ struct Worker {
     audio: mpsc::Receiver<Vec<u8>>,
     control: mpsc::UnboundedReceiver<Control>,
     paused: bool,
+    settings: Option<serde_json::Value>,
     stop_ack: Option<oneshot::Sender<()>>,
     replay: VecDeque<Vec<u8>>,
 }
@@ -313,6 +339,7 @@ impl Worker {
                             c = self.control.recv() => match c {
                                 Some(Control::Pause) => self.paused = true,
                                 Some(Control::Resume) => self.paused = false,
+                                Some(Control::Settings(v)) => self.settings = Some(v),
                                 Some(Control::Stop(ack)) => { self.stop_ack = Some(ack); break; }
                                 None => return,
                             }
@@ -363,6 +390,11 @@ impl Worker {
             _ => return SessionEnd::Retry,
         }
 
+        if let Some(settings) = &self.settings {
+            if ws.send(Message::text(settings.to_string())).await.is_err() {
+                return SessionEnd::Retry;
+            }
+        }
         // Re-send recent frames that may have been lost in flight (server dedups by seq).
         for frame in self.replay.clone() {
             if ws.send(Message::binary(frame)).await.is_err() {
@@ -404,6 +436,11 @@ impl Worker {
                         self.paused = false;
                         let msg = serde_json::json!({ "type": "capture.resumed" }).to_string();
                         if ws.send(Message::text(msg)).await.is_err() { return SessionEnd::Retry; }
+                    }
+                    Some(Control::Settings(v)) => {
+                        let text = v.to_string();
+                        self.settings = Some(v);
+                        if ws.send(Message::text(text)).await.is_err() { return SessionEnd::Retry; }
                     }
                     Some(Control::Stop(ack)) => {
                         // Send what is already queued, then ask the server to finish.
@@ -503,6 +540,16 @@ mod tests {
         assert_eq!(&f[1..5], &[0x04, 0x03, 0x02, 0x01]);
         assert_eq!(i16::from_le_bytes([f[5], f[6]]), -160);
         assert!(encode_frame(Source::System, 0, &[0; 100]).is_none());
+    }
+
+    #[test]
+    fn settings_message_is_tagged_and_cannot_be_retyped() {
+        let m = settings_message(&serde_json::json!({
+            "auto_suggestions": "all", "translate_to": "en", "type": "capture.stopped"
+        }));
+        assert_eq!(m["type"], "copilot.settings");
+        assert_eq!(m["auto_suggestions"], "all");
+        assert_eq!(m["translate_to"], "en");
     }
 
     #[test]

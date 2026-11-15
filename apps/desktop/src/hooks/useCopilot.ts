@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useReducer } from "react";
 import type { CopilotMode, CopilotTone } from "@meetpilot/shared-types";
 import { api, events, isTauri, toCommandError } from "../lib/api";
-import { contextFromTranscript, copilotReducer, emptyCopilot } from "../lib/copilot";
+import { contextFromTranscript, copilotReducer, emptyCopilot, manualId } from "../lib/copilot";
 import type { TranscriptState } from "../lib/transcript";
 
-/** Answers are broadcast by the app, so the main window and the overlay stay in sync. */
+/**
+ * Answers are broadcast by the app, so the main window and the overlay stay in sync. Manual
+ * requests come from the copilot command; automatic suggestions from the realtime stream.
+ */
 export function useCopilot() {
   const [state, dispatch] = useReducer(copilotReducer, emptyCopilot);
 
@@ -12,13 +15,16 @@ export function useCopilot() {
     if (!isTauri()) return;
     const subs = [
       events.onCopilotPending((p) => {
-        if (p.state === "pending") dispatch({ kind: "pending", id: p.id, mode: p.mode, question: p.question });
-        else dispatch({ kind: "failed", id: p.id, error: p.error ?? "error" });
+        const id = manualId(p.id);
+        if (p.state === "pending") dispatch({ kind: "pending", id, mode: p.mode, question: p.question });
+        else dispatch({ kind: "failed", id, error: p.error ?? "error" });
       }),
       events.onCopilotAnswer((a) => {
         const { id, mode, question, ...answer } = a;
-        dispatch({ kind: "answer", id, mode, question, answer });
+        dispatch({ kind: "answer", id: manualId(id), mode, question, answer });
       }),
+      // Automatic suggestions arrive on the realtime stream (answer.started/completed/failed).
+      events.onServer((envelope) => dispatch({ kind: "server", envelope })),
     ];
     return () => subs.forEach((p) => p.then((off) => off()));
   }, []);

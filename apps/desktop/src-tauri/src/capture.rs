@@ -169,11 +169,56 @@ pub async fn request_permission(source: AudioSource) -> CmdResult<PermissionStat
         .map_err(|e| CommandError::new("internal", e.to_string()))?
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoSuggestions {
+    Off,
+    Directed,
+    All,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Tone {
+    Natural,
+    Formal,
+    Concise,
+    Technical,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+pub enum TranslateTo {
+    #[serde(rename = "pt-BR")]
+    PtBr,
+    #[serde(rename = "en")]
+    En,
+}
+
+/// Live assistance during a transcribed meeting. Validated here so the server only ever
+/// receives known values; serialized in the gateway's `copilot.settings` shape.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveOptions {
+    #[serde(rename(serialize = "auto_suggestions"))]
+    pub auto_suggestions: AutoSuggestions,
+    pub tone: Tone,
+    #[serde(rename(serialize = "translate_to"))]
+    pub translate_to: Option<TranslateTo>,
+}
+
+impl LiveOptions {
+    pub fn to_server(self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap_or_default()
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptionRequest {
     /// "pt-BR" | "en" | "multi"
     pub language: String,
+    #[serde(default)]
+    pub live: Option<LiveOptions>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -348,7 +393,13 @@ pub async fn start_capture(
 
     // Connect to the server first so no captured audio is missed.
     let uplink = match &request.transcription {
-        Some(t) => Some(open_uplink(&app, &t.language).await?),
+        Some(t) => {
+            let u = open_uplink(&app, &t.language).await?;
+            if let Some(live) = t.live {
+                u.handle.set_settings(live.to_server());
+            }
+            Some(u)
+        }
         None => None,
     };
 
@@ -398,6 +449,18 @@ fn with_active<T>(
         .as_ref()
         .ok_or_else(|| CommandError::new("invalid_state", "Capture is not running."))?;
     Ok(f(active)?)
+}
+
+/// Change live assistance (automatic suggestions, tone, translation) mid-meeting.
+#[tauri::command]
+pub fn set_live_options(state: State<'_, CaptureState>, options: LiveOptions) -> CmdResult<()> {
+    let guard = state.lock();
+    let uplink = guard
+        .as_ref()
+        .and_then(|a| a.uplink.as_ref())
+        .ok_or_else(|| CommandError::new("invalid_state", "Transcription is not running."))?;
+    uplink.handle.set_settings(options.to_server());
+    Ok(())
 }
 
 #[tauri::command]
@@ -546,7 +609,30 @@ mod tests {
             r#"{"systemAudio":null,"microphone":{"device_id":null},"transcription":{"language":"pt-BR"}}"#,
         )
         .unwrap();
-        assert_eq!(r.transcription.unwrap().language, "pt-BR");
+        let t = r.transcription.unwrap();
+        assert_eq!(t.language, "pt-BR");
+        assert!(t.live.is_none());
+    }
+
+    #[test]
+    fn live_options_are_validated_and_sent_in_server_shape() {
+        let o: LiveOptions = serde_json::from_str(
+            r#"{"autoSuggestions":"directed","tone":"formal","translateTo":"en"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            o.to_server(),
+            serde_json::json!({"auto_suggestions":"directed","tone":"formal","translate_to":"en"})
+        );
+        let none: LiveOptions = serde_json::from_str(
+            r#"{"autoSuggestions":"off","tone":"natural","translateTo":null}"#,
+        )
+        .unwrap();
+        assert!(none.to_server()["translate_to"].is_null());
+        assert!(serde_json::from_str::<LiveOptions>(
+            r#"{"autoSuggestions":"sometimes","tone":"natural","translateTo":null}"#
+        )
+        .is_err());
     }
 
     #[test]

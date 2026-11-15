@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { linkLabel, TranscriptPanel } from "./TranscriptPanel";
 import { emptyTranscript, type TranscriptState } from "../lib/transcript";
 import { makeT } from "../lib/i18n";
@@ -22,7 +22,7 @@ const state: TranscriptState = {
 describe("TranscriptPanel", () => {
   it("labels speakers by source and marks partial text", () => {
     render(<TranscriptPanel t={t} state={state} droppedFrames={0} />);
-    expect(screen.getByText("Qual é o prazo?").parentElement?.textContent).toContain("Outros");
+    expect(screen.getByText("Qual é o prazo?").closest(".line")?.textContent).toContain("Outros");
     const partial = screen.getByText("Sexta…").parentElement!;
     expect(partial.className).toContain("line--partial");
     expect(partial.textContent).toContain("Você");
@@ -32,6 +32,41 @@ describe("TranscriptPanel", () => {
     render(<TranscriptPanel t={t} state={state} droppedFrames={12} />);
     expect(screen.getByText(/texto de exemplo/)).toBeTruthy();
     expect(screen.getByText(/12 quadros de áudio/)).toBeTruthy();
+  });
+});
+
+describe("translation and detected questions", () => {
+  const translated: TranscriptState = {
+    ...state,
+    partials: {},
+    translations: { s1: "What is the deadline?" },
+    questions: ["s1"],
+  };
+
+  it("shows original and translation by default and marks the question", () => {
+    render(<TranscriptPanel t={t} state={translated} droppedFrames={0} />);
+    const line = screen.getByText("Qual é o prazo?").closest(".line")!;
+    expect(line.className).toContain("line--question");
+    expect(line.textContent).toContain("Pergunta");
+    expect(screen.getByTestId("translation").textContent).toBe("What is the deadline?");
+  });
+
+  it("can show only the translation or only the original", () => {
+    const { rerender } = render(<TranscriptPanel t={t} state={translated} droppedFrames={0} view="translation" />);
+    expect(screen.queryByText("Qual é o prazo?")).toBeNull();
+    expect(screen.getByText("What is the deadline?")).toBeTruthy();
+    rerender(<TranscriptPanel t={t} state={translated} droppedFrames={0} view="original" />);
+    expect(screen.getByText("Qual é o prazo?")).toBeTruthy();
+    expect(screen.queryByTestId("translation")).toBeNull();
+  });
+
+  it("offers the view selector only when there are translations", () => {
+    let chosen = "";
+    const { rerender } = render(<TranscriptPanel t={t} state={state} droppedFrames={0} onViewChange={(v) => (chosen = v)} />);
+    expect(screen.queryByLabelText("Mostrar")).toBeNull();
+    rerender(<TranscriptPanel t={t} state={translated} droppedFrames={0} onViewChange={(v) => (chosen = v)} />);
+    fireEvent.change(screen.getByLabelText("Mostrar"), { target: { value: "translation" } });
+    expect(chosen).toBe("translation");
   });
 });
 

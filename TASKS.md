@@ -2,6 +2,26 @@
 
 Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
 
+## ✅ Completed — Slice 4 (live assistance: automatic suggestions + translation)
+
+- ✅ Question detector PT/EN (`app/ai/questions.py`): trailing "?" or request opener; directed (second person / request) vs general; ignores tag questions and very short lines; no LLM cost
+- ✅ Auto-answer policy: one in flight, newest waiting question wins, ≥ 6 s apart, ≤ 6/min, same question not re-answered within 60 s, stale after 20 s (configurable)
+- ✅ `LiveAssist` in the realtime gateway: in-memory rolling context per meeting (cleared on finish/delete), `question.detected`, `answer.started/completed/failed`, `translation.updated`; quota-aware; metered (`copilot_request`, tokens, `translation_request`)
+- ✅ `copilot.settings` control message; question ids stable across reconnects and deferred answers
+- ✅ Desktop: realtime client re-sends settings after reconnect; `set_live_options` command + validated `LiveOptions` in `start_capture`; options UI (Automatic suggestions: Off / Only questions asked to me / All questions; Translate to: none / Portuguese / English), remembered between runs and changeable mid-meeting
+- ✅ Transcript shows translations (original + translation / translation only / original only) and marks detected questions; overlay shows "Question detected" + suggestion and translated lines; overlay taller (380 px)
+- ✅ Docs: API, architecture, security/privacy, PRD decisions, roadmap, README
+
+### Verification performed (slice 4)
+
+| Check | Result |
+|---|---|
+| Backend **113 tests** (41 new: detector PT/EN, policy, live stream flow, off/all modes, translation once per final, quota, LLM failure not billed, invalid settings, context cleared, deferred answer id) | ✅ |
+| Rust **46 tests** (settings message, re-send after reconnect, live options validation), clippy -D warnings on Linux + cross Windows + cross macOS | ✅ |
+| Frontend **56 tests** (auto answers in reducer, translations/questions in transcript, options UI, panels), tsc, build | ✅ |
+| E2E (real app + API on PostgreSQL, fake STT/LLM, PT meeting → EN): questions marked, suggestions appear by themselves in overlay and main window, repeated question not re-answered within 60 s, translation under each line; **mid-meeting** switch to no translation and suggestions Off took effect immediately; preferences remembered after restart; DB holds only counters (6 copilot requests, 57 translations, tokens) | ✅ |
+| Bug found in e2e and fixed: options were inside the fieldset disabled during capture, so they could not be changed mid-meeting | ✅ |
+
 ## ✅ Completed — Slice 3 (Ask Copilot)
 
 - ✅ LLM provider protocol; `fake` (dev/test) and OpenAI Responses adapter (strict JSON schema, `store: false`, reasoning effort, timeouts, error mapping without leaking provider bodies)
@@ -108,11 +128,12 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 
 ## ⏭ Next
 
-1. Real-key runs (Deepgram, OpenAI) + hardware test plan on Windows/macOS.
-2. Slice 4: automatic question detection + suggested answers, PT ↔ EN translation.
-3. Refresh token in OS keychain; email verification / password reset.
-4. Server job to finish meetings left `active`; Redis for rate limit/concurrency when scaling out.
-5. ESLint + Prettier for the frontend (currently `tsc --strict` only).
+1. Real-key runs (Deepgram, OpenAI) + hardware test plan on Windows/macOS; tune question detection and translation on real meetings.
+2. Slice 5: overlay modes (minimal/standard/advanced), configurable shortcuts, multi-monitor.
+3. Echo handling when the mic picks up the speakers (no headphones).
+4. Refresh token in OS keychain; email verification / password reset.
+5. Server job to finish meetings left `active`; Redis for rate limit/concurrency when scaling out (live context is per-process RAM today).
+6. ESLint + Prettier for the frontend (currently `tsc --strict` only).
 
 ## Known limitations / tech debt
 
@@ -120,7 +141,8 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - Linear-interpolation resampler is speech-grade, not hi-fi; revisit if STT accuracy suffers.
 - Windows microphone permission is detected on failure, not pre-flighted.
 - macOS tap permission state cannot be queried in advance (no public API).
-- Overlay shows the indicator, controls and the last transcript lines; answers come with Slices 3–5.
+- Question detection is heuristic: it can miss questions without "?" from the STT punctuation or flag rhetorical ones; tune with real meetings.
+- Live context lives in the API process memory: with several API instances a reconnect may land on another instance and start with an empty context (needs sticky sessions or Redis).
 - Transcripts are not persisted server-side yet; copying is the only export.
 - If transcription fails mid-meeting (e.g. session revoked), local capture continues until the user stops it; frames that cannot be sent are counted and shown.
 - Shortcuts are fixed (configurable shortcuts planned in Slice 5).

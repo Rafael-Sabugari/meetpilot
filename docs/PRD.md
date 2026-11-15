@@ -55,6 +55,10 @@ Portuguese and English. Initial markets: Brazil and international.
 | 2026-11-15 | On-device Whisper "private mode" explored and **set aside** by the owner; engine work kept on local branch `wip/whisper-private-mode` | Owner decision; cloud (Deepgram) stays the only transcription path for now |
 | 2026-11-15 | Copilot LLM: OpenAI GPT-5 mini (Responses API, structured output, `store: false`) | Verified Sept–Oct 2026 pricing US$0.25/M input, US$2.00/M output (≈US$0.001 per question with ~3k tokens of context); model configurable |
 | 2026-11-15 | Trial copilot quota: 200 questions/month, 20/minute (configurable) | Cost control until pricing is validated |
+| 2026-11-15 | Automatic suggestions default to **only questions asked to the user**; options Off / All questions | Avoids noise and cost; owner approved slice 4 ("detect by itself and show the suggestion") |
+| 2026-11-15 | Question detection is heuristic (no LLM) and only on the others' audio | Zero cost for non-questions; the user's own questions don't need answers |
+| 2026-11-15 | Automatic answers share the copilot quota (200/month trial) | One budget the user understands; UI says so next to the setting |
+| 2026-11-15 | Translation PT ↔ EN of final lines with original/translation/both views, via the same LLM | No extra vendor; partials are not translated (cost, flicker) |
 | 2026-11-15 | Desktop keeps the session in memory only | Avoids storing tokens on disk before keychain integration; costs a re-login per app start |
 
 ## Open product questions (need the owner's decision; not blocking current work)

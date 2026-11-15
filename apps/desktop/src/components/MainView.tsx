@@ -8,6 +8,8 @@ import { useAccount } from "../hooks/useAccount";
 import { useTranscript } from "../hooks/useTranscript";
 import { useCopilot } from "../hooks/useCopilot";
 import { CopilotPanel } from "./CopilotPanel";
+import { LiveAssistOptions } from "./LiveAssistOptions";
+import { loadLivePrefs, saveLivePrefs, toLiveOptions, type LivePrefs } from "../lib/liveOptions";
 import { AccountPanel } from "./AccountPanel";
 import { ConsentDialog, hasTranscriptionConsent } from "./ConsentDialog";
 import { TranscriptPanel } from "./TranscriptPanel";
@@ -48,6 +50,7 @@ export function MainView({ t }: { t: T }) {
     navigator.language?.toLowerCase().startsWith("pt") ? "pt-BR" : "en",
   );
   const [showConsent, setShowConsent] = useState(false);
+  const [live, setLive] = useState<LivePrefs>(loadLivePrefs);
 
   const nativeAvailable = !!caps?.capabilities;
 
@@ -73,7 +76,7 @@ export function MainView({ t }: { t: T }) {
       systemAudio: useSystem ? { device_id: systemDevice || null } : null,
       microphone: useMic ? { device_id: micDevice || null } : null,
       demo,
-      transcription: transcribe && canTranscribe ? { language } : null,
+      transcription: transcribe && canTranscribe ? { language, live: toLiveOptions(live) } : null,
     });
   };
   const onStop = async () => {
@@ -89,6 +92,17 @@ export function MainView({ t }: { t: T }) {
   };
   const droppedFrames = (cap.status as StatusDto | null)?.dropped_frames ?? 0;
   const meetingId = (cap.status as StatusDto | null)?.meeting_id ?? null;
+  const transcribing = !!(cap.status as StatusDto | null)?.transcribing;
+  const updateLive = (next: LivePrefs) => {
+    const serverChanged =
+      next.autoSuggestions !== live.autoSuggestions || next.tone !== live.tone || next.translateTo !== live.translateTo;
+    setLive(next);
+    saveLivePrefs(next);
+    // Mid-meeting changes apply immediately; otherwise they are sent when capture starts.
+    if (serverChanged && transcribing) {
+      api.setLiveOptions(toLiveOptions(next)).catch((e) => setLocalError(`${t("live.applyError")}: ${toCommandError(e).message}`));
+    }
+  };
   // Live meeting, or the last one (the app keeps its id so you can ask after Stop).
   const copilotEnabled = !!acct.account && (!!meetingId || transcript.state.finals.length > 0);
 
@@ -196,6 +210,8 @@ export function MainView({ t }: { t: T }) {
               </label>
             </div>
           </fieldset>
+          {/* Outside the fieldset: these can be changed during a meeting. */}
+          <LiveAssistOptions t={t} prefs={live} onChange={updateLive} disabled={!transcribe || !canTranscribe} />
 
           <div className="controls">
             {idle ? (
@@ -253,11 +269,24 @@ export function MainView({ t }: { t: T }) {
         </section>
 
         {(transcribe || transcript.state.finals.length > 0 || transcript.state.link) && (
-          <TranscriptPanel t={t} state={transcript.state} droppedFrames={droppedFrames} />
+          <TranscriptPanel
+            t={t}
+            state={transcript.state}
+            droppedFrames={droppedFrames}
+            view={live.translationView}
+            onViewChange={(translationView) => updateLive({ ...live, translationView })}
+          />
         )}
 
         {acct.account && (
-          <CopilotPanel t={t} copilot={copilot} transcript={transcript.state} enabled={copilotEnabled} />
+          <CopilotPanel
+            t={t}
+            copilot={copilot}
+            transcript={transcript.state}
+            enabled={copilotEnabled}
+            tone={live.tone}
+            onToneChange={(tone) => updateLive({ ...live, tone })}
+          />
         )}
 
         <AccountPanel t={t} acct={acct} />

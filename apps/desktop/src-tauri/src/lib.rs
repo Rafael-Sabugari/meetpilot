@@ -89,6 +89,7 @@ pub fn run() {
             capture::get_capture_status,
             capture::set_overlay_protection,
             capture::set_overlay_shown,
+            capture::set_live_options,
             account::account_login,
             account::account_register,
             account::account_logout,

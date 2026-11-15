@@ -1,8 +1,10 @@
 import type {
   LinkStatus,
   RealtimeEnvelope,
+  QuestionDetectedPayload,
   RealtimeErrorPayload,
   TranscriptSegment,
+  TranslationPayload,
   UsagePayload,
 } from "@meetpilot/shared-types";
 
@@ -18,6 +20,10 @@ export interface TranscriptState {
   provider: string | null;
   errors: RealtimeErrorPayload[];
   lastSeq: number;
+  /** Translation per final segment id (bounded like `finals`). */
+  translations: Record<string, string>;
+  /** Segment ids of lines detected as questions to answer. */
+  questions: string[];
 }
 
 export const emptyTranscript: TranscriptState = {
@@ -29,7 +35,16 @@ export const emptyTranscript: TranscriptState = {
   provider: null,
   errors: [],
   lastSeq: -1,
+  translations: {},
+  questions: [],
 };
+
+function bounded<T>(rec: Record<string, T>, key: string, value: T): Record<string, T> {
+  const next = { ...rec, [key]: value };
+  const keys = Object.keys(next);
+  for (const k of keys.slice(0, Math.max(0, keys.length - MAX_FINAL_SEGMENTS))) delete next[k];
+  return next;
+}
 
 export type TranscriptAction =
   | { kind: "server"; envelope: RealtimeEnvelope }
@@ -69,6 +84,16 @@ export function transcriptReducer(state: TranscriptState, action: TranscriptActi
           const finals = [...next.finals, seg].slice(-MAX_FINAL_SEGMENTS);
           return { ...next, finals, partials };
         }
+        case "translation.updated": {
+          const p = env.payload as TranslationPayload;
+          if (!p.text?.trim()) return next;
+          return { ...next, translations: bounded(next.translations, p.segment_id, p.text) };
+        }
+        case "question.detected": {
+          const p = env.payload as QuestionDetectedPayload;
+          if (next.questions.includes(p.segment_id)) return next;
+          return { ...next, questions: [...next.questions, p.segment_id].slice(-MAX_FINAL_SEGMENTS) };
+        }
         case "usage.updated":
           return { ...next, usage: env.payload as UsagePayload };
         case "error":
@@ -81,13 +106,24 @@ export function transcriptReducer(state: TranscriptState, action: TranscriptActi
 }
 
 /** Last `n` lines for the compact overlay, oldest first, with live partials appended. */
-export function recentLines(state: TranscriptState, n: number): { text: string; source: string; final: boolean }[] {
-  const lines = state.finals.map((s) => ({ text: s.text, source: s.source, final: true }));
+export function recentLines(
+  state: TranscriptState,
+  n: number,
+): { text: string; source: string; final: boolean; translation?: string }[] {
+  const lines: { text: string; source: string; final: boolean; translation?: string }[] = state.finals.map((s) => ({
+    text: s.text,
+    source: s.source,
+    final: true,
+    translation: state.translations[s.segment_id],
+  }));
   for (const p of Object.values(state.partials)) {
     if (p) lines.push({ text: p.text, source: p.source, final: false });
   }
   return lines.slice(-n);
 }
+
+/** How translated lines are shown. */
+export type TranslationView = "both" | "translation" | "original";
 
 export function formatClock(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -95,5 +131,11 @@ export function formatClock(ms: number): string {
 }
 
 export function transcriptAsText(state: TranscriptState, labels: Record<string, string>): string {
-  return state.finals.map((s) => `[${formatClock(s.start_ms)}] ${labels[s.source] ?? s.source}: ${s.text}`).join("\n");
+  return state.finals
+    .map((s) => {
+      const line = `[${formatClock(s.start_ms)}] ${labels[s.source] ?? s.source}: ${s.text}`;
+      const tr = state.translations[s.segment_id];
+      return tr ? `${line}\n        → ${tr}` : line;
+    })
+    .join("\n");
 }
