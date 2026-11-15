@@ -12,14 +12,15 @@ in a private overlay.
 
 ## Status
 
-Slice 1 of the roadmap: project foundation + **local audio capture proof of concept**.
+Slices 1–2 of the roadmap: local audio capture (Windows/macOS) and **live transcription**
+through the MeetPilot backend (Deepgram Nova-3, PT-BR/EN). AI copilot features come next.
 See [`TASKS.md`](TASKS.md) for exactly what is implemented, tested and still blocked.
-Transcription and AI features are not implemented yet.
 
 ## Repository
 
 ```text
 crates/audio-capture   Rust: capture abstraction, DSP, session, OS backends, mp-audio-probe
+crates/realtime-client Rust: REST client + resilient audio uplink to the backend
 apps/desktop           Tauri 2 app (React + TypeScript UI, Rust shell)
 packages/shared-types  TypeScript contracts shared with Rust/Python
 backend                FastAPI modular monolith (Python, uv)
@@ -63,8 +64,28 @@ Full test plan and OS permission details: [`docs/AUDIO_CAPTURE.md`](docs/AUDIO_C
 cd backend
 uv sync
 uv run uvicorn app.main:app --reload      # http://localhost:8000/api/v1/health
-# or the full stack: docker compose up --build   (from the repo root)
+# or the full stack (PostgreSQL + Redis + API, migrations applied): docker compose up --build
 ```
+
+Development uses SQLite (`meetpilot-dev.db`, created automatically) and the **fake**
+speech-to-text provider, which returns placeholder text (clearly labelled in the app).
+
+### Live transcription with Deepgram
+
+1. Create a Deepgram API key (console.deepgram.com). Keep it on the server only.
+2. Check the key with a recording (16 kHz mono WAV, e.g. from `mp-audio-probe --wav`):
+   ```bash
+   cd backend
+   MEETPILOT_DEEPGRAM_API_KEY=... uv run python scripts/deepgram_smoke.py speech.wav pt-BR
+   ```
+3. Run the API with Deepgram:
+   ```bash
+   MEETPILOT_STT_PROVIDER=deepgram MEETPILOT_DEEPGRAM_API_KEY=... uv run uvicorn app.main:app
+   ```
+4. In the desktop app: create an account (server `http://localhost:8000`), tick **Live
+   transcription**, accept the consent dialog, pick the meeting language, press **Start**.
+
+Requests use `mip_opt_out=true` (audio excluded from Deepgram model training).
 
 ## Checks
 
@@ -88,5 +109,7 @@ desktop app natively on Windows and macOS.
 
 ## Privacy in this version
 
-Audio is converted and measured locally; it is **not stored and not sent anywhere**.
-The only way to write audio to disk is the developer flag `mp-audio-probe --wav`.
+Audio is never stored. It leaves the computer only while **live transcription** is on
+(after explicit consent), goes to your MeetPilot server over TLS, and from there to
+Deepgram. Transcripts are shown to you and not saved on the server. The only way to write
+audio to disk is the developer flag `mp-audio-probe --wav`.

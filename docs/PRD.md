@@ -49,11 +49,15 @@ Portuguese and English. Initial markets: Brazil and international.
 | 2026-11-14 | "Demo signal" mode, always labelled DEMO | Lets anyone test the UI/pipeline without devices; never mistaken for real audio |
 | 2026-11-14 | Closing the main window stops capture and quits | No background recording |
 | 2026-11-14 | Linux is a development platform only | Not a target OS in the brief |
+| 2026-11-15 | Speech-to-text: Deepgram Nova-3 (monolingual `pt-BR`/`en`; `multi` for mixed meetings) | Owner approved. Verified Nov 2026: Nova-3 supports pt-BR (model updated May 2026); streaming monolingual US$0.0048/min promotional (US$0.0077 regular), multilingual US$0.0058/min; `mip_opt_out=true` keeps audio out of training |
+| 2026-11-15 | Trial plan: 60 transcription minutes / month (configurable) | Placeholder until pricing is validated; enforcement is real |
+| 2026-11-15 | Transcripts are not stored server-side yet | Privacy by default; history/storage comes with the opt-in setting in a later slice |
+| 2026-11-15 | Desktop keeps the session in memory only | Avoids storing tokens on disk before keychain integration; costs a re-login per app start |
 
 ## Open product questions (need the owner's decision; not blocking current work)
 
-1. Speech-to-text vendor for launch (Deepgram is the brief's candidate) — needs a current
-   price/latency/PT-BR quality/retention-terms check.
+1. ~~Speech-to-text vendor~~ — Deepgram chosen (2026-11-15). Still to do: measure PT-BR
+   accuracy and latency on real meetings with the owner's key.
 2. Brazilian payment provider alongside Stripe.
 3. Whether a free tier exists and its minute allowance.
 4. Product name/trademark validation ("MeetPilot" is provisional).

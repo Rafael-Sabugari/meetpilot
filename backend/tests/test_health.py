@@ -28,6 +28,12 @@ def test_readiness_reports_unconfigured_dependencies() -> None:
 
 
 def test_docs_disabled_in_production() -> None:
-    s = Settings(env="production", jwt_secret="x" * 32, database_url="postgresql://db/x")
+    s = Settings(
+        env="production",
+        jwt_secret="x" * 32,
+        database_url="sqlite+aiosqlite://",
+        stt_provider="deepgram",
+        deepgram_api_key="dg",
+    )
     c = TestClient(create_app(s))
     assert c.get("/api/docs").status_code == 404

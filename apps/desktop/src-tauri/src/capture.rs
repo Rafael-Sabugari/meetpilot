@@ -1,14 +1,17 @@
-//! Tauri commands and events for user-controlled local audio capture.
+//! Tauri commands and events for user-controlled capture and (optional) live transcription.
 //!
 //! Events emitted to the webviews:
-//! * `capture://status` — [`CaptureStatus`] whenever the session or a source changes state.
-//! * `capture://level`  — [`LevelReading`] ~10x/s per source (drives the visible indicator).
-//! * `capture://error`  — [`CaptureError`] for non-fatal problems (e.g. one source failed).
+//! * `capture://status`   — [`CaptureStatus`] whenever the session or a source changes state.
+//! * `capture://level`    — [`LevelReading`] ~10x/s per source (drives the visible indicator).
+//! * `capture://error`    — [`CaptureError`] for non-fatal problems (e.g. one source failed).
+//! * `realtime://status`  — [`LinkStatus`] of the connection to the MeetPilot server.
+//! * `realtime://event`   — server envelopes (transcripts, usage, errors), passed through.
 //!
-//! Audio frames are not sent to the UI. In this slice they are counted and discarded; the
-//! next slice forwards them to the authenticated realtime gateway for speech-to-text.
+//! Audio leaves the computer only when the user enabled transcription for this capture,
+//! is signed in, and capture is active and not paused. Frames are never logged.
 
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use meetpilot_audio::providers::synthetic::SyntheticProvider;
 use meetpilot_audio::{
@@ -16,12 +19,19 @@ use meetpilot_audio::{
     CaptureSession, CaptureStatus, DeviceInfo, PermissionState, PlatformCapabilities, SessionEvent,
     SessionState, SourceSelection,
 };
+use meetpilot_realtime::{
+    spawn_stream, EventSink, Source, StreamConfig, StreamEvent, StreamHandle, TokenProvider,
+};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
+
+use crate::account::AccountState;
 
 pub const EVT_STATUS: &str = "capture://status";
 pub const EVT_LEVEL: &str = "capture://level";
 pub const EVT_ERROR: &str = "capture://error";
+pub const EVT_LINK: &str = "realtime://status";
+pub const EVT_SERVER: &str = "realtime://event";
 pub const OVERLAY_LABEL: &str = "overlay";
 
 #[derive(Debug, Serialize)]
@@ -47,7 +57,7 @@ impl From<CaptureError> for CommandError {
 }
 
 impl CommandError {
-    fn new(kind: &str, message: impl Into<String>) -> Self {
+    pub fn new(kind: &str, message: impl Into<String>) -> Self {
         Self {
             kind: kind.into(),
             message: message.into(),
@@ -58,9 +68,16 @@ impl CommandError {
 
 type CmdResult<T> = Result<T, CommandError>;
 
+/// Live link to the server for one meeting.
+struct Uplink {
+    handle: Arc<StreamHandle>,
+    meeting_id: String,
+}
+
 struct Active {
     session: CaptureSession,
     demo: bool,
+    uplink: Option<Uplink>,
 }
 
 #[derive(Default)]
@@ -137,12 +154,23 @@ pub async fn request_permission(source: AudioSource) -> CmdResult<PermissionStat
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TranscriptionRequest {
+    /// "pt-BR" | "en" | "multi"
+    pub language: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StartRequest {
     pub system_audio: Option<SourceSelection>,
     pub microphone: Option<SourceSelection>,
     /// Use the generated test tone instead of real devices (clearly labelled in the UI).
     #[serde(default)]
     pub demo: bool,
+    /// Send audio to the MeetPilot server for live transcription. Off unless the user enabled
+    /// it (after giving consent in the UI).
+    #[serde(default)]
+    pub transcription: Option<TranscriptionRequest>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -150,9 +178,38 @@ pub struct StatusDto {
     #[serde(flatten)]
     pub status: CaptureStatus,
     pub demo: bool,
+    pub meeting_id: Option<String>,
+    pub transcribing: bool,
+    pub dropped_frames: u64,
 }
 
-fn event_handler(app: AppHandle) -> meetpilot_audio::EventHandler {
+fn dto(a: &Active, status: CaptureStatus) -> StatusDto {
+    StatusDto {
+        status,
+        demo: a.demo,
+        meeting_id: a.uplink.as_ref().map(|u| u.meeting_id.clone()),
+        transcribing: a.uplink.as_ref().is_some_and(|u| !u.handle.is_finished()),
+        dropped_frames: a.uplink.as_ref().map_or(0, |u| u.handle.dropped_frames()),
+    }
+}
+
+fn idle_dto() -> StatusDto {
+    StatusDto {
+        status: CaptureStatus {
+            state: SessionState::Idle,
+            sources: vec![],
+        },
+        demo: false,
+        meeting_id: None,
+        transcribing: false,
+        dropped_frames: 0,
+    }
+}
+
+fn event_handler(
+    app: AppHandle,
+    uplink: Option<Arc<StreamHandle>>,
+) -> meetpilot_audio::EventHandler {
     Arc::new(move |ev| match ev {
         SessionEvent::Level(l) => {
             let _ = app.emit(EVT_LEVEL, l);
@@ -164,8 +221,16 @@ fn event_handler(app: AppHandle) -> meetpilot_audio::EventHandler {
             log::warn!("capture error: {e}");
             let _ = app.emit(EVT_ERROR, e);
         }
-        // Not forwarded anywhere yet (no network in this slice). Never logged.
-        SessionEvent::Frame(_) => {}
+        // Never logged. Forwarded only when transcription is on; non-blocking.
+        SessionEvent::Frame(f) => {
+            if let Some(h) = &uplink {
+                let source = match f.source {
+                    AudioSource::System => Source::System,
+                    AudioSource::Microphone => Source::Microphone,
+                };
+                h.send_frame(source, f.seq as u32, &f.samples);
+            }
+        }
     })
 }
 
@@ -175,6 +240,68 @@ pub fn set_overlay_visible(app: &AppHandle, visible: bool) {
         if let Err(e) = r {
             log::warn!("overlay visibility change failed: {e}");
         }
+    }
+}
+
+async fn open_uplink(app: &AppHandle, language: &str) -> CmdResult<Uplink> {
+    let accounts = app.state::<AccountState>();
+    let (client, access) = accounts.access().await?;
+    let created = client.create_meeting(&access, language).await?;
+    let meeting_id = created.meeting.id.clone();
+
+    let tokens: TokenProvider = {
+        let app = app.clone();
+        let meeting_id = meeting_id.clone();
+        Arc::new(move || {
+            let app = app.clone();
+            let meeting_id = meeting_id.clone();
+            Box::pin(async move {
+                let accounts = app.state::<AccountState>();
+                let (client, access) = accounts
+                    .access()
+                    .await
+                    .map_err(|_| meetpilot_realtime::ApiError::Unauthorized)?;
+                Ok(client
+                    .stream_token(&access, &meeting_id)
+                    .await?
+                    .stream_token)
+            })
+        })
+    };
+    let sink: EventSink = {
+        let app = app.clone();
+        Arc::new(move |e| match e {
+            StreamEvent::Status(s) => {
+                let _ = app.emit(EVT_LINK, s);
+            }
+            StreamEvent::Server(v) => {
+                let _ = app.emit(EVT_SERVER, v);
+            }
+        })
+    };
+    let ws_url = client.ws_url(&created.stream.stream_path);
+    let handle = spawn_stream(
+        StreamConfig::new(ws_url),
+        created.stream.stream_token,
+        tokens,
+        sink,
+    );
+    Ok(Uplink {
+        handle: Arc::new(handle),
+        meeting_id,
+    })
+}
+
+async fn close_uplink(app: &AppHandle, uplink: Uplink) {
+    // Waits for the server to flush final transcripts (bounded by the stream's stop timeout).
+    uplink.handle.stop().await;
+    match app.state::<AccountState>().access().await {
+        Ok((client, access)) => {
+            if let Err(e) = client.finish_meeting(&access, &uplink.meeting_id).await {
+                log::warn!("could not mark meeting finished: {e}");
+            }
+        }
+        Err(e) => log::warn!("could not mark meeting finished: {}", e.message),
     }
 }
 
@@ -201,12 +328,18 @@ pub async fn start_capture(
     } else {
         native()?
     };
+
+    // Connect to the server first so no captured audio is missed.
+    let uplink = match &request.transcription {
+        Some(t) => Some(open_uplink(&app, &t.language).await?),
+        None => None,
+    };
+
     let config = CaptureConfig {
         system_audio: request.system_audio,
         microphone: request.microphone,
     };
-    let demo = request.demo;
-    let handler = event_handler(app.clone());
+    let handler = event_handler(app.clone(), uplink.as_ref().map(|u| Arc::clone(&u.handle)));
     // Opening OS streams can block (permission prompts); do it off the async runtime.
     let (session, result) = tauri::async_runtime::spawn_blocking(move || {
         let session = CaptureSession::new(provider, handler);
@@ -215,10 +348,25 @@ pub async fn start_capture(
     })
     .await
     .map_err(|e| CommandError::new("internal", e.to_string()))?;
-    let status = result?;
-    *state.lock() = Some(Active { session, demo });
+
+    let status = match result {
+        Ok(s) => s,
+        Err(e) => {
+            if let Some(u) = uplink {
+                close_uplink(&app, u).await;
+            }
+            return Err(e.into());
+        }
+    };
+    let active = Active {
+        session,
+        demo: request.demo,
+        uplink,
+    };
+    let out = dto(&active, status);
+    *state.lock() = Some(active);
     set_overlay_visible(&app, true);
-    Ok(StatusDto { status, demo })
+    Ok(out)
 }
 
 fn with_active<T>(
@@ -235,20 +383,23 @@ fn with_active<T>(
 #[tauri::command]
 pub fn pause_capture(state: State<'_, CaptureState>) -> CmdResult<StatusDto> {
     with_active(&state, |a| {
-        Ok(StatusDto {
-            status: a.session.pause()?,
-            demo: a.demo,
-        })
+        // Local gate first (no frames after this returns), then tell the server.
+        let s = a.session.pause()?;
+        if let Some(u) = &a.uplink {
+            u.handle.pause();
+        }
+        Ok(dto(a, s))
     })
 }
 
 #[tauri::command]
 pub fn resume_capture(state: State<'_, CaptureState>) -> CmdResult<StatusDto> {
     with_active(&state, |a| {
-        Ok(StatusDto {
-            status: a.session.resume()?,
-            demo: a.demo,
-        })
+        if let Some(u) = &a.uplink {
+            u.handle.resume();
+        }
+        let s = a.session.resume()?;
+        Ok(dto(a, s))
     })
 }
 
@@ -256,51 +407,66 @@ pub fn resume_capture(state: State<'_, CaptureState>) -> CmdResult<StatusDto> {
 pub fn toggle_pause(state: &CaptureState) -> CmdResult<StatusDto> {
     with_active(state, |a| {
         let status = match a.session.status().state {
-            SessionState::Capturing => a.session.pause()?,
-            SessionState::Paused => a.session.resume()?,
+            SessionState::Capturing => {
+                let s = a.session.pause()?;
+                if let Some(u) = &a.uplink {
+                    u.handle.pause();
+                }
+                s
+            }
+            SessionState::Paused => {
+                if let Some(u) = &a.uplink {
+                    u.handle.resume();
+                }
+                a.session.resume()?
+            }
             SessionState::Idle => a.session.status(),
         };
-        Ok(StatusDto {
-            status,
-            demo: a.demo,
-        })
+        Ok(dto(a, status))
     })
 }
 
+/// Stop capture (immediately, locally) and then let the server flush final transcripts.
+pub async fn stop_all(app: &AppHandle) -> StatusDto {
+    let active = app.state::<CaptureState>().lock().take();
+    set_overlay_visible(app, false);
+    match active {
+        Some(a) => {
+            let status = a.session.stop();
+            let out = StatusDto {
+                status,
+                demo: a.demo,
+                meeting_id: a.uplink.as_ref().map(|u| u.meeting_id.clone()),
+                transcribing: false,
+                dropped_frames: a.uplink.as_ref().map_or(0, |u| u.handle.dropped_frames()),
+            };
+            if let Some(u) = a.uplink {
+                close_uplink(app, u).await;
+            }
+            out
+        }
+        None => idle_dto(),
+    }
+}
+
 #[tauri::command]
-pub fn stop_capture(app: AppHandle, state: State<'_, CaptureState>) -> CmdResult<StatusDto> {
-    let active = state.lock().take();
-    let dto = match active {
-        Some(a) => StatusDto {
-            status: a.session.stop(),
-            demo: a.demo,
-        },
-        None => StatusDto {
-            status: CaptureStatus {
-                state: SessionState::Idle,
-                sources: vec![],
-            },
-            demo: false,
-        },
-    };
-    set_overlay_visible(&app, false);
-    Ok(dto)
+pub async fn stop_capture(app: AppHandle) -> CmdResult<StatusDto> {
+    Ok(stop_all(&app).await)
+}
+
+/// Used when the main window closes: stop capture without waiting long on the network.
+pub fn stop_for_exit(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::block_on(async move {
+        let _ = tokio::time::timeout(Duration::from_secs(3), stop_all(&app)).await;
+    });
 }
 
 #[tauri::command]
 pub fn get_capture_status(state: State<'_, CaptureState>) -> StatusDto {
     match state.lock().as_ref() {
-        Some(a) => StatusDto {
-            status: a.session.status(),
-            demo: a.demo,
-        },
-        None => StatusDto {
-            status: CaptureStatus {
-                state: SessionState::Idle,
-                sources: vec![],
-            },
-            demo: false,
-        },
+        Some(a) => dto(a, a.session.status()),
+        None => idle_dto(),
     }
 }
 
@@ -341,26 +507,39 @@ mod tests {
     }
 
     #[test]
-    fn start_request_accepts_camel_case_and_defaults_demo() {
+    fn start_request_defaults_to_no_transcription() {
         let r: StartRequest =
             serde_json::from_str(r#"{"systemAudio":{"device_id":null},"microphone":null}"#)
                 .unwrap();
         assert!(r.system_audio.is_some());
         assert!(r.microphone.is_none());
         assert!(!r.demo);
+        assert!(
+            r.transcription.is_none(),
+            "audio never leaves the device by default"
+        );
     }
 
     #[test]
-    fn status_dto_flattens_status() {
-        let dto = StatusDto {
-            status: CaptureStatus {
-                state: SessionState::Paused,
-                sources: vec![],
-            },
-            demo: true,
-        };
-        let v = serde_json::to_value(&dto).unwrap();
-        assert_eq!(v["state"], "paused");
-        assert_eq!(v["demo"], true);
+    fn start_request_with_transcription() {
+        let r: StartRequest = serde_json::from_str(
+            r#"{"systemAudio":null,"microphone":{"device_id":null},"transcription":{"language":"pt-BR"}}"#,
+        )
+        .unwrap();
+        assert_eq!(r.transcription.unwrap().language, "pt-BR");
+    }
+
+    #[test]
+    fn idle_status_serializes_flat() {
+        let v = serde_json::to_value(idle_dto()).unwrap();
+        assert_eq!(v["state"], "idle");
+        assert_eq!(v["transcribing"], false);
+        assert!(v["meeting_id"].is_null());
+    }
+
+    #[test]
+    fn api_errors_become_command_errors() {
+        let e: CommandError = meetpilot_realtime::ApiError::QuotaExceeded.into();
+        assert_eq!(e.kind, "quota_exceeded");
     }
 }

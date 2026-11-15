@@ -15,6 +15,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 meetpilot-audio = { path = "../../../crates/audio-capture" }
+meetpilot-realtime = { path = "../../../crates/realtime-client" }
+tokio = { version = "1", features = ["sync", "time"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-global-shortcut = "2"
 serde.workspace = true

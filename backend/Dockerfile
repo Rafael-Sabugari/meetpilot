@@ -6,7 +6,11 @@ WORKDIR /srv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY app ./app
+COPY migrations ./migrations
+COPY alembic.ini ./
 RUN uv sync --frozen --no-dev && useradd --system --uid 10001 meetpilot
 USER meetpilot
 EXPOSE 8000
-CMD ["/srv/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+# Apply database migrations, then serve. (Run migrations as a separate release step when
+# scaling to multiple replicas.)
+CMD ["sh", "-c", "/srv/.venv/bin/alembic upgrade head && exec /srv/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]

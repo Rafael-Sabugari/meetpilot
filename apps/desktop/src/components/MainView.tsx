@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AudioSource, DeviceInfo, PermissionState, SupportLevel } from "@meetpilot/shared-types";
-import { api, isTauri, toCommandError, type CapabilitiesDto } from "../lib/api";
+import type { AudioSource, DeviceInfo, Language, PermissionState, SupportLevel } from "@meetpilot/shared-types";
+import { api, isTauri, toCommandError, type CapabilitiesDto, type StatusDto } from "../lib/api";
 import { formatDuration, isLevelStale, sourceProblem } from "../lib/indicator";
 import type { MessageKey } from "../lib/i18n";
 import { useCapture } from "../hooks/useCapture";
+import { useAccount } from "../hooks/useAccount";
+import { useTranscript } from "../hooks/useTranscript";
+import { AccountPanel } from "./AccountPanel";
+import { ConsentDialog, hasTranscriptionConsent } from "./ConsentDialog";
+import { TranscriptPanel } from "./TranscriptPanel";
 import { CaptureIndicator } from "./CaptureIndicator";
 import { LevelMeter } from "./LevelMeter";
 import { Onboarding } from "./Onboarding";
@@ -33,6 +38,13 @@ export function MainView({ t }: { t: T }) {
   const [demo, setDemo] = useState(false);
   const [protect, setProtect] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const acct = useAccount();
+  const transcript = useTranscript();
+  const [transcribe, setTranscribe] = useState(false);
+  const [language, setLanguage] = useState<Language>(() =>
+    navigator.language?.toLowerCase().startsWith("pt") ? "pt-BR" : "en",
+  );
+  const [showConsent, setShowConsent] = useState(false);
 
   const nativeAvailable = !!caps?.capabilities;
 
@@ -52,12 +64,27 @@ export function MainView({ t }: { t: T }) {
   const state = cap.status?.state ?? "idle";
   const idle = state === "idle";
 
-  const onStart = () =>
-    cap.start({
+  const canTranscribe = !!acct.account;
+  const onStart = () => {
+    return cap.start({
       systemAudio: useSystem ? { device_id: systemDevice || null } : null,
       microphone: useMic ? { device_id: micDevice || null } : null,
       demo,
+      transcription: transcribe && canTranscribe ? { language } : null,
     });
+  };
+  const onStop = async () => {
+    await cap.stop();
+    if (acct.account) acct.refreshUsage();
+  };
+  const toggleTranscribe = (on: boolean) => {
+    if (on && !hasTranscriptionConsent()) {
+      setShowConsent(true);
+      return;
+    }
+    setTranscribe(on);
+  };
+  const droppedFrames = (cap.status as StatusDto | null)?.dropped_frames ?? 0;
 
   const requestPermission = async (source: AudioSource) => {
     try {
@@ -141,6 +168,27 @@ export function MainView({ t }: { t: T }) {
               <input type="checkbox" checked={demo} onChange={(e) => setDemo(e.target.checked)} disabled={!nativeAvailable} />
               {t("sources.demo")}
             </label>
+            <div className="tx-options">
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={transcribe && canTranscribe}
+                  disabled={!canTranscribe}
+                  onChange={(e) => toggleTranscribe(e.target.checked)}
+                  data-testid="transcribe-toggle"
+                />
+                {t("tx.enable")}
+              </label>
+              {!canTranscribe && <span className="muted small">{t("tx.needAccount")}</span>}
+              <label className="select">
+                <span className="muted small">{t("tx.language")}</span>
+                <select value={language} disabled={!transcribe || !canTranscribe} onChange={(e) => setLanguage(e.target.value as Language)}>
+                  {(["pt-BR", "en", "multi"] as const).map((l) => (
+                    <option key={l} value={l}>{t(`tx.lang.${l}` as MessageKey)}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </fieldset>
 
           <div className="controls">
@@ -155,7 +203,7 @@ export function MainView({ t }: { t: T }) {
                 ) : (
                   <button className="btn" disabled={cap.busy} onClick={cap.resume}>▶ {t("controls.resume")}</button>
                 )}
-                <button className="btn btn--danger" disabled={cap.busy} onClick={cap.stop}>■ {t("controls.stop")}</button>
+                <button className="btn btn--danger" disabled={cap.busy} onClick={onStop}>■ {t("controls.stop")}</button>
               </>
             )}
           </div>
@@ -198,6 +246,12 @@ export function MainView({ t }: { t: T }) {
           })}
         </section>
 
+        {(transcribe || transcript.state.finals.length > 0 || transcript.state.link) && (
+          <TranscriptPanel t={t} state={transcript.state} droppedFrames={droppedFrames} />
+        )}
+
+        <AccountPanel t={t} acct={acct} />
+
         <section className="card">
           <h2>Overlay</h2>
           <button className="btn" onClick={() => api.setOverlayShown(true)}>{t("overlay.show")}</button>
@@ -224,6 +278,16 @@ export function MainView({ t }: { t: T }) {
           </section>
         )}
       </div>
+      {showConsent && (
+        <ConsentDialog
+          t={t}
+          onAccept={() => {
+            setShowConsent(false);
+            setTranscribe(true);
+          }}
+          onCancel={() => setShowConsent(false)}
+        />
+      )}
       <footer className="muted small">{t("privacy.footer")}</footer>
     </main>
   );

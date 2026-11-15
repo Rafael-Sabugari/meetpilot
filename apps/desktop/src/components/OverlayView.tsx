@@ -1,6 +1,8 @@
 import type { MessageKey } from "../lib/i18n";
 import { isLevelStale, dbfsToPercent } from "../lib/indicator";
 import { useCapture } from "../hooks/useCapture";
+import { useTranscript } from "../hooks/useTranscript";
+import { recentLines } from "../lib/transcript";
 import { CaptureIndicator } from "./CaptureIndicator";
 
 /**
@@ -9,7 +11,9 @@ import { CaptureIndicator } from "./CaptureIndicator";
  */
 export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
   const cap = useCapture();
+  const transcript = useTranscript();
   const state = cap.status?.state ?? "idle";
+  const lines = recentLines(transcript.state, 3);
   return (
     <main className="overlay" data-tauri-drag-region>
       <div className="overlay__row" data-tauri-drag-region>
@@ -38,6 +42,16 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
           );
         })}
       </div>
+      {lines.length > 0 && (
+        <div className="overlay__lines" aria-live="polite">
+          {lines.map((l, i) => (
+            <p key={i} className={l.final ? "" : "line--partial"}>
+              <span className="who">{l.source === "system" ? t("tx.others") : t("tx.you")}</span>
+              {l.text}
+            </p>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

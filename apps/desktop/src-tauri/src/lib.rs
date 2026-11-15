@@ -5,11 +5,13 @@
 //! user. It never joins a meeting as a bot, participant or attendee, and it does not use
 //! meeting links, invitations or meeting-provider APIs.
 
+mod account;
 mod capture;
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
+use account::AccountState;
 use capture::CaptureState;
 
 pub const EVT_SHORTCUT_ERROR: &str = "app://shortcut-error";
@@ -54,6 +56,7 @@ pub fn run() {
                 .build(),
         )
         .manage(CaptureState::default())
+        .manage(AccountState::default())
         .setup(move |app| {
             for sc in [pause_shortcut, overlay_shortcut] {
                 if let Err(e) = app.global_shortcut().register(sc) {
@@ -69,9 +72,7 @@ pub fn run() {
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { .. } = event {
                     let app = window.app_handle();
-                    if let Some(state) = app.try_state::<CaptureState>() {
-                        let _ = capture::stop_capture(app.clone(), state);
-                    }
+                    capture::stop_for_exit(app);
                     app.exit(0);
                 }
             }
@@ -87,6 +88,11 @@ pub fn run() {
             capture::get_capture_status,
             capture::set_overlay_protection,
             capture::set_overlay_shown,
+            account::account_login,
+            account::account_register,
+            account::account_logout,
+            account::account_status,
+            account::account_usage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running MeetPilot");

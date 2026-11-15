@@ -26,7 +26,22 @@ meetings. Privacy is a product feature, built in from the first slice.
 | Indicator never understates capture (reconnecting/partial counts as capturing) | `lib/indicator.ts` | unit tests |
 | Pause gate: no frames after `pause()` returns, queued audio discarded | `session.rs` | `no_frames_are_emitted_while_paused`, `pause_during_reconnect_is_honoured` |
 | Closing the main window stops capture | `src-tauri/src/lib.rs` | manual |
-| Audio frames not logged, not persisted, not sent anywhere (this slice) | `capture.rs` event handler | code review |
+| Audio frames never logged or persisted; sent only when the user enabled transcription for that capture, is signed in, and capture is not paused | `capture.rs`, `realtime-client` | code review; `start_request_defaults_to_no_transcription` |
+| Explicit consent dialog before the first transcription (what is sent, where, retention, telling participants); cannot be accepted without ticking | `ConsentDialog.tsx` | `ConsentDialog.test.tsx`; e2e |
+| Server never forwards or bills audio received while paused | `gateway.py` | `test_audio_sent_while_paused_is_never_forwarded_or_billed` |
+| Deepgram requests sent with `mip_opt_out=true` (excluded from model training; retained only as long as needed to process) | `deepgram.py`, config default | `test_url_has_streaming_params_and_training_opt_out` |
+| Provider key only on the server; production refuses the fake provider or a missing key | `config.py` | `test_config.py` |
+| HTTPS required for non-localhost servers in the desktop client | `realtime-client/src/api.rs` | `https_required_except_localhost` |
+| Passwords hashed with Argon2id; identical response for unknown user vs wrong password; login rate limited | `auth/` | `test_auth.py` |
+| Access tokens 15 min; stream tokens 2 min and bound to one meeting; access/stream tokens not interchangeable | `auth/security.py` | `test_auth.py`, `test_realtime.py` |
+| Refresh tokens opaque, stored hashed, rotated on use; reuse of a rotated token revokes all of the user's sessions | `auth/router.py` | `test_refresh_token_reuse_revokes_the_whole_family` |
+| Desktop keeps tokens in memory only; password cleared from the form after sign-in | `account.rs`, `AccountPanel.tsx` | code review |
+| Tenant isolation: other users' meetings return 404 on every route and on the stream | `meetings/router.py`, `gateway.py` | `test_users_cannot_see_or_touch_each_others_meetings`, stream tests |
+| One concurrent stream per user; monthly minute quota enforced at meeting creation and mid-stream | `gateway.py`, `usage/` | `test_one_concurrent_stream_per_user`, quota tests |
+| No double billing on reconnects (seq de-dup persisted with usage) | `gateway.py` | `test_replay_protection_survives_a_server_restart`; e2e (2,196 frames captured = 2,196 billed across a server restart) |
+| Usage persisted even on abrupt disconnects | `gateway.py` (shielded persist) | `test_replayed_frames_after_reconnect_are_not_retranscribed_or_rebilled` |
+| Transcripts not stored server-side in this version (`store_transcripts` defaults to false) | `models.py` | code review |
+| Error events never include audio or transcript text | `gateway.py` | `test_provider_failure_is_reported_as_retryable_error` |
 | `mp-audio-probe --wav` writes audio only when explicitly requested (dev tool) | `mp-audio-probe.rs` | code review |
 | Demo mode visibly labelled DEMO | `CaptureIndicator.tsx` | unit test |
 | Overlay content protection is opt-in and described as best effort | `MainView.tsx`, `set_overlay_protection` | manual |
@@ -40,16 +55,15 @@ meetings. Privacy is a product feature, built in from the first slice.
 
 ## Planned controls (tracked in TASKS.md / ROADMAP.md)
 
-* Auth: Argon2id password hashing, short-lived access tokens + rotating refresh tokens,
-  rate limiting and lockout, per-request tenant authorization on every resource.
-* Realtime: TLS WebSocket, token-scoped to one meeting, per-user concurrency and minute
-  entitlements enforced server-side, never trusting client-supplied user IDs.
+* Refresh token in the OS keychain (Windows Credential Manager / macOS Keychain).
+* Email verification and password reset; account lockout policy; distributed rate limiting.
+* Server-side cleanup of meetings left `active` when the client could not finish them.
+* Deepgram data-processing agreement and region review before launch.
 * Encryption at rest for documents/sensitive fields; signed short-lived object URLs.
 * Data export and deletion workflows; retention jobs; audit events.
 * Provider review (retention, training use, region) before each vendor is enabled; prefer
   zero-retention options where offered.
 * Crash reporting with content scrubbing.
-* Explicit first-use consent screen before any audio leaves the device (transcription).
 
 ## Consent and law
 

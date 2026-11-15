@@ -26,7 +26,7 @@
 │  │  React UI: main window + private always-on-top overlay      │  │
 │  └─────────────┬───────────────────────────────────────────────┘  │
 └────────────────┼──────────────────────────────────────────────────┘
-                 │ (next slice) TLS WebSocket, authenticated, 16 kHz PCM frames
+                 │ TLS WebSocket, stream-token auth, 16 kHz PCM frames (crates/realtime-client)
                  ▼
 ┌──────────────── MeetPilot backend (FastAPI modular monolith) ────┐
 │ realtime gateway → STT adapter → context → question detection →  │
@@ -41,6 +41,7 @@
 | Path | What |
 |---|---|
 | `crates/audio-capture` | `meetpilot-audio`: capture abstraction, DSP, session, OS backends, `mp-audio-probe` CLI |
+| `crates/realtime-client` | `meetpilot-realtime`: REST client (auth, meetings) and resilient audio uplink |
 | `apps/desktop` | Tauri 2 app: React/TS UI (`src/`) and Rust shell (`src-tauri/`) |
 | `packages/shared-types` | TypeScript contracts mirroring Rust/Python schemas |
 | `backend` | FastAPI modular monolith (Python 3.12+, uv) |
@@ -136,15 +137,39 @@ OS callback thread ──try_send──► bounded queue (128 chunks) ──► 
 * Closing the main window stops capture and exits — nothing records in the background.
 * Overlay content protection (`set_content_protected`) is an opt-in, best-effort setting.
 
+## 3.5 Live transcription path (slice 2)
+
+```text
+CaptureSession ─Frame(seq)─► StreamHandle.send_frame (try_send, never blocks)
+                               │ bounded queue 1500 frames (30 s) — overflow counted, shown in UI
+                               ▼
+                      uplink task (tokio) ──WS──► gateway ──► STT session per source ──► Deepgram
+                       • auth with stream token        • dedup by seq (persisted)    (nova-3,
+                       • reconnect w/ backoff,         • metering in integer frames   mip_opt_out)
+                         fresh token each time         • pause → KeepAlive only
+                       • replay last 250 frames        • quota / concurrency checks
+                       • stop() waits for finals ◄──── transcript events (meeting-relative ms)
+```
+
+* The desktop never holds provider keys. It holds a short-lived access token and a refresh
+  token **in memory only** (re-login after restart; OS keychain planned).
+* Start order: meeting + stream are created **before** local capture starts, so no audio is
+  lost at the beginning; pause gates audio locally first, then notifies the server.
+* `stop` stops local capture immediately; the uplink then flushes queued frames, sends
+  `capture.stopped`, waits (≤10 s) for final segments, and the meeting is marked finished.
+
 ## 4. Backend (`backend/`)
 
 FastAPI modular monolith; modules are packages under `app/` and are extracted only when
 load, isolation or ownership requires it.
 
-Implemented now: settings (`app/core/config.py`, secrets as `SecretStr`, production
-guards), redacting JSON logging (`app/core/logging.py`), request-id middleware, health
-endpoints, versioned realtime event schemas (`app/realtime/events.py`), STT provider
-protocol (`app/providers/stt/base.py`).
+Implemented: settings with production guards (`app/core/config.py`); redacting JSON logs;
+request IDs; health; SQLAlchemy 2 async models + Alembic migrations (`users`, `meetings`,
+`usage_records`, `refresh_tokens`) — SQLite for dev/test, PostgreSQL in production; auth
+(Argon2id, JWT access/stream tokens, rotating refresh tokens, login rate limit); meetings
+with tenant isolation; usage metering + monthly entitlement; realtime gateway
+(`app/realtime/gateway.py`); STT providers behind a protocol — `fake` (dev/test) and
+`deepgram` (`app/providers/stt/deepgram.py`).
 
 Planned modules (see `ROADMAP.md`): `auth`, `users`, `meetings`, `transcripts`, `realtime`
 gateway, `providers/{stt,llm,embeddings}`, `ai/{context,question_detection,response_generation,translation,summarization,action_items}`,
@@ -168,3 +193,7 @@ gateway, `providers/{stt,llm,embeddings}`, `ai/{context,question_detection,respo
 | Worker thread owns the OS stream | No `Send` requirements on platform stream types; clean teardown |
 | Separate sources, not a mix | Speaker attribution and duplicate avoidance downstream |
 | Tauri 2 (not 3 alpha) | Brief requirement; 3.x is pre-release |
+| Deepgram Nova-3 monolingual by default (`pt-BR`/`en`), `multi` optional | PT-BR support with recent model update; streaming WebSocket; per-request training opt-out; monolingual is cheaper than multilingual |
+| One STT connection per audio source | Separate "you" vs "others" attribution; provider bills per stream either way |
+| Native TLS (`native-tls`) in the desktop client | Uses the OS trust store (corporate proxies/CAs) on Windows/macOS |
+| In-process rate limiter, concurrency and seq cache | Single instance for now; move to Redis when running several replicas (dedup is already DB-backed) |

@@ -24,7 +24,7 @@
         "title": "MeetPilot — capture indicator",
         "url": "index.html",
         "width": 360,
-        "height": 104,
+        "height": 180,
         "minWidth": 260,
         "minHeight": 96,
         "resizable": true,

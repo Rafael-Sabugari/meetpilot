@@ -27,14 +27,29 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: backend } }
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env: { POSTGRES_USER: meetpilot, POSTGRES_PASSWORD: ci, POSTGRES_DB: meetpilot }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U meetpilot" --health-interval 5s --health-retries 10
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --frozen
       - run: uv run ruff format --check .
       - run: uv run ruff check .
-      - run: uv run mypy app tests
+      - run: uv run mypy app tests scripts
       - run: uv run pytest -W error
+      - name: Migrations up/down/up on PostgreSQL
+        env:
+          MEETPILOT_DATABASE_URL: postgresql+asyncpg://meetpilot:ci@localhost:5432/meetpilot
+        run: |
+          uv run alembic upgrade head
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+          uv run alembic check
 
   rust-linux:
     runs-on: ubuntu-latest
@@ -72,8 +87,8 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm }
       - run: npm ci && npm run build -w @meetpilot/desktop
-      - run: cargo clippy -p meetpilot-audio -p meetpilot-desktop --all-targets -- -D warnings
-      - run: cargo test -p meetpilot-audio -p meetpilot-desktop
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
       - run: cargo build -p meetpilot-audio --bin mp-audio-probe --release
       - name: Capability detection smoke test
         run: cargo run -q -p meetpilot-audio --bin mp-audio-probe --release -- capabilities

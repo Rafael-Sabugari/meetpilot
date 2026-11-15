@@ -1,6 +1,40 @@
 # TASKS
 
-Last updated: 2026-11-14. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next
+Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next
+
+## ✅ Completed — Slice 2 (live transcription)
+
+- ✅ Deepgram research (Nov 2026): Nova-3 PT-BR support, streaming pricing, `mip_opt_out` retention terms, WebSocket protocol (KeepAlive/CloseStream/Results)
+- ✅ Backend data layer: SQLAlchemy 2 async models, Alembic migrations (3), verified up/down/up on PostgreSQL 17 and `alembic check` clean
+- ✅ Auth: register/login/me, Argon2id, JWT access (15 min) + stream (2 min, meeting-bound) tokens, rotating refresh tokens with reuse detection, logout, login rate limit
+- ✅ Meetings API with tenant isolation (404 for others' resources), stream-token refresh, finish, delete
+- ✅ Usage metering in integer frames, monthly trial quota (402 / mid-stream stop)
+- ✅ Realtime gateway: stream-token auth, binary frame protocol, per-source STT sessions, pause (no forwarding/billing, KeepAlive), backpressure, one stream per user, seq de-dup persisted across server restarts, shielded usage persistence, meeting-relative timestamps
+- ✅ STT providers: fake (dev/test) and Deepgram adapter (tested against a protocol-faithful mock server); real-key smoke script
+- ✅ `meetpilot-realtime` crate: REST client (HTTPS enforced except localhost, native TLS) and uplink (non-blocking send, 30 s buffer, reconnect with fresh token, 5 s replay, fatal close codes, flush on stop)
+- ✅ Desktop: account (in-memory tokens, auto refresh), transcription toggle + language, consent dialog, live transcript panel (copy), overlay last lines, link status, dropped-frame warning
+- ✅ CI: PostgreSQL service + migration checks; workspace-wide clippy/tests on Windows and macOS
+
+### Verification performed (slice 2)
+
+| Check | Result |
+|---|---|
+| Backend: ruff, mypy --strict, pytest -W error — **54 tests** | ✅ |
+| Rust: fmt, clippy -D warnings (Linux + cross Windows + cross macOS), **40 tests** (11 new in realtime client) | ✅ |
+| Frontend: tsc, **33 vitest tests**, vite build | ✅ |
+| Migrations on PostgreSQL 17 (up/down/up, `alembic check`) | ✅ |
+| E2E (Xvfb, real app + API on PostgreSQL, fake STT): register in UI → consent → PT-BR transcript in main window and overlay → **server killed and restarted mid-meeting** → reconnect, buffered audio transcribed, transcript kept → stop → **2,196 frames captured = 2,196 frames billed** | ✅ |
+| E2E: server restarted with a different JWT secret → app stops retrying, clear message, dropped frames reported | ✅ |
+
+### Bugs found and fixed during slice 2 verification
+
+- Float accumulation refused the last frame before the quota boundary → integer-frame metering
+- Frames in flight during a disconnect were silently lost → client replay + server de-dup
+- De-dup was memory-only, so a server restart double-billed 5 s → high-water mark persisted with usage
+- Abrupt disconnects could cancel usage persistence → shielded write
+- UI cleared the transcript on every reconnect (server seq restarts) → reset only on a new capture
+- Timestamps restarted at 00:00 after reconnect → offset by the session's first frame
+- Stale partial text after the link ended; password left in the form after sign-in
 
 ## ✅ Completed — Slice 1 (foundation + audio capture PoC)
 
@@ -44,13 +78,18 @@ Last updated: 2026-11-14. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - ⛔ Backend Docker image not built (no Docker daemon in build environment); compose file validated only.
 - ⛔ macOS signing/notarization (needs Apple Developer account); unsigned apps can behave differently with privacy permissions.
 
-## ⏭ Next (Slice 1b → 2)
+## ⛔ Blocked — needs the owner
 
-1. Execute hardware test plan; fix issues; record screen-sharing results.
-2. Choose STT vendor after checking current API/pricing/retention (decision needed from owner).
-3. Minimal auth + authenticated realtime WebSocket + STT adapter + transcript UI.
-4. First-use consent screen before any audio leaves the device.
-5. Add ESLint + Prettier to the frontend (currently `tsc --strict` only).
+- ⛔ **Real Deepgram run**: needs a Deepgram API key (never committed). Run `backend/scripts/deepgram_smoke.py`, then the app with `MEETPILOT_STT_PROVIDER=deepgram`.
+- ⛔ Hardware validation of capture on Windows and macOS (slice 1b) — still pending.
+
+## ⏭ Next
+
+1. Real-key run + PT-BR accuracy/latency notes; hardware test plan on Windows/macOS.
+2. Slice 3: context manager, LLM provider abstraction, manual "Ask Copilot" with grounding labels.
+3. Refresh token in OS keychain; email verification / password reset.
+4. Server job to finish meetings left `active`; Redis for rate limit/concurrency when scaling out.
+5. ESLint + Prettier for the frontend (currently `tsc --strict` only).
 
 ## Known limitations / tech debt
 
@@ -58,5 +97,7 @@ Last updated: 2026-11-14. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - Linear-interpolation resampler is speech-grade, not hi-fi; revisit if STT accuracy suffers.
 - Windows microphone permission is detected on failure, not pre-flighted.
 - macOS tap permission state cannot be queried in advance (no public API).
-- Overlay currently shows the capture indicator and controls only; transcript/answers come with Slices 2–5.
+- Overlay shows the indicator, controls and the last transcript lines; answers come with Slices 3–5.
+- Transcripts are not persisted server-side yet; copying is the only export.
+- If transcription fails mid-meeting (e.g. session revoked), local capture continues until the user stops it; frames that cannot be sent are counted and shown.
 - Shortcuts are fixed (configurable shortcuts planned in Slice 5).

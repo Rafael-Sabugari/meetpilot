@@ -37,3 +37,35 @@ export interface RealtimeEnvelope<T = unknown> {
   ts: string;
   payload: T;
 }
+
+export type Language = "pt-BR" | "en" | "multi";
+
+export interface TranscriptSegment {
+  segment_id: string;
+  source: "system" | "microphone";
+  text: string;
+  language: string | null;
+  start_ms: number;
+  end_ms: number;
+  is_final: boolean;
+  speaker: string | null;
+}
+
+export interface RealtimeErrorPayload {
+  code: string;
+  message: string;
+  retryable: boolean;
+}
+
+export interface UsagePayload {
+  session_seconds: number;
+  remaining_seconds: number;
+}
+
+/** Desktop ↔ server link state (crates/realtime-client `LinkStatus`). */
+export type LinkStatus =
+  | { state: "connecting" }
+  | { state: "connected" }
+  | { state: "reconnecting"; attempt: number; retry_in_ms: number }
+  | { state: "closed" }
+  | { state: "failed"; reason: string; code: number | null };

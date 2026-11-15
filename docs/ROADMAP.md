@@ -19,19 +19,18 @@ shortcuts; FastAPI foundation with event contracts and redacting logs.
 
 **Exit criterion = brief's Milestone 1 audio part:** real meeting audio captured on both OSes.
 
-## Slice 2 — Streaming transcription (brief Sprint 3)
+## ✅ Slice 2 — Streaming transcription (brief Sprint 3)
 
-* Verify current STT vendor APIs, pricing, PT-BR/EN quality, data-retention terms (Deepgram
-  first, per brief), then implement `StreamingSTTProvider` adapter + fake for tests.
-* Auth minimal (register/login, short-lived tokens) so the stream is authenticated.
-* Realtime WebSocket gateway (contract in `API.md`), backpressure, heartbeats, reconnect.
-* Desktop: frame uploader (bounded queue, reconnect with `seq` resume), first-use consent
-  screen, transcript view in main window and overlay.
-* Meter processed audio minutes per user.
+Deepgram adapter (+ fake), PostgreSQL schema with Alembic, auth with rotating refresh tokens,
+meetings, usage metering and monthly quota, authenticated realtime gateway with replay
+de-duplication, desktop uplink with buffering/reconnect, consent dialog, live transcript in
+the main window and overlay. Verified end-to-end with the fake provider, including a server
+restart mid-meeting.
 
-**Exit:** system audio transcribed and displayed live; usage minutes recorded.
+**Remaining exit criterion:** run with a real Deepgram key on real meeting audio
+(`backend/scripts/deepgram_smoke.py`, then the desktop app).
 
-## Slice 3 — Ask Copilot (completes brief Milestone 1)
+## ▶ Slice 3 — Ask Copilot (completes brief Milestone 1)
 
 Context manager (rolling window, token budget), LLM provider abstraction, manual "Ask
 Copilot" with grounding labels, prompt evaluation tests, per-plan budgets.
