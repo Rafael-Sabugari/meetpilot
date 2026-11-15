@@ -131,10 +131,7 @@ impl AudioCaptureProvider for SyntheticProvider {
             AudioSource::System => &self.faults.fail_opens_system,
             AudioSource::Microphone => &self.faults.fail_opens_mic,
         };
-        if counter
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
-            .is_ok()
-        {
+        if take_one(counter) {
             let err = self.faults.open_error.lock().unwrap().clone().unwrap_or(
                 CaptureError::DeviceUnavailable {
                     audio: source,
@@ -154,6 +151,18 @@ impl AudioCaptureProvider for SyntheticProvider {
         stream.faults = Some(Arc::clone(&self.faults));
         Ok(Box::new(stream))
     }
+}
+
+/// Atomically decrement `counter` if it is positive. Returns whether one was taken.
+fn take_one(counter: &AtomicU32) -> bool {
+    let mut cur = counter.load(Ordering::SeqCst);
+    while cur > 0 {
+        match counter.compare_exchange(cur, cur - 1, Ordering::SeqCst, Ordering::SeqCst) {
+            Ok(_) => return true,
+            Err(actual) => cur = actual,
+        }
+    }
+    false
 }
 
 struct SyntheticStream {
