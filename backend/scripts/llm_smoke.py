@@ -1,7 +1,8 @@
 """Smoke test of the configured LLM provider with realistic meeting excerpts.
 
 Usage (key from the environment, never from arguments):
-    MEETPILOT_LLM_PROVIDER=anthropic MEETPILOT_ANTHROPIC_API_KEY=... uv run python scripts/llm_smoke.py
+    MEETPILOT_LLM_PROVIDER=anthropic MEETPILOT_ANTHROPIC_API_KEY=... \
+        uv run python scripts/llm_smoke.py
 
 Prints each answer, its grounding label, latency and token counts, plus an estimated cost
 (prices passed with --price-in/--price-out, US$ per million tokens). Sends only the fixed

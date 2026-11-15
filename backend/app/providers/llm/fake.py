@@ -28,9 +28,7 @@ class FakeLLMProvider:
             raise self.fail
         if schema_name == "translation":
             return LLMResult(
-                data={
-                    "translation": f"(tradução de teste) {input_text.removeprefix('<line>').removesuffix('</line>')}"
-                },
+                data={"translation": f"(tradução de teste) {_strip_line_tags(input_text)}"},
                 input_tokens=max(1, len(input_text) // 4),
                 output_tokens=max(1, len(input_text) // 4),
                 model="fake",
@@ -48,3 +46,7 @@ class FakeLLMProvider:
             output_tokens=40,
             model="fake",
         )
+
+
+def _strip_line_tags(text: str) -> str:
+    return text.removeprefix("<line>").removesuffix("</line>")
