@@ -1,0 +1,34 @@
+# Local development stack. Never use these credentials outside your machine.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: meetpilot
+      POSTGRES_PASSWORD: meetpilot-dev-only
+      POSTGRES_DB: meetpilot
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meetpilot"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
+
+  backend:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MEETPILOT_DATABASE_URL: postgresql://meetpilot:meetpilot-dev-only@postgres:5432/meetpilot
+      MEETPILOT_REDIS_URL: redis://redis:6379/0
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+volumes:
+  pgdata:

@@ -1,0 +1,23 @@
+# Rust
+/target/
+# Node
+node_modules/
+apps/desktop/dist/
+# Tauri generated
+apps/desktop/src-tauri/gen/
+# Python
+backend/.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# Secrets and local data
+.env
+*.pem
+*.key
+# Never commit captured audio
+*.wav
+*.pcm
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,23 @@
+[package]
+name = "meetpilot-desktop"
+description = "MeetPilot desktop app: private, local meeting copilot (never joins meetings)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "meetpilot_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+meetpilot-audio = { path = "../../../crates/audio-capture" }
+tauri = { version = "2", features = [] }
+tauri-plugin-global-shortcut = "2"
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+env_logger = "0.11"

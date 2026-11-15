@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>MeetPilot uses your microphone only while you have started capture, to transcribe what you say. It never joins your meetings.</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>MeetPilot captures audio playing on this Mac (for example, your meeting) only while you have started capture, to show you a private transcript. It never joins your meetings.</string>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>On macOS 13–14.5, system audio is only available through Screen &amp; System Audio Recording. MeetPilot requests audio only and discards the video frames.</string>
+</dict>
+</plist>

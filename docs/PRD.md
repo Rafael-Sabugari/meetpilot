@@ -1,0 +1,67 @@
+# MeetPilot — Product Requirements (living summary)
+
+The full original specification is in [`MeetPilot_Master_Brief.md`](./MeetPilot_Master_Brief.md).
+This document tracks the requirements as they are being implemented and records product
+decisions taken along the way.
+
+## Vision
+
+A private AI meeting copilot that helps a person understand and take part in online
+meetings — live transcript, translation (PT ↔ EN), detected questions with suggested,
+grounded answers, and post-meeting summaries — **without adding any bot or participant to
+the meeting**.
+
+**Promise:** *Your private AI copilot for every conversation.*
+
+## Non-negotiables
+
+1. Never joins a meeting as a bot, participant or attendee; no meeting links, invitations,
+   calendar access or meeting-provider APIs required for core functionality.
+2. Capture only after explicit user action, with a visible indicator at all times and
+   immediate pause/stop.
+3. No raw audio stored by default; storage and retention are opt-in and configurable.
+4. Never fabricate the user's experience, credentials or facts; label suggestions as
+   `From your profile`, `From your documents`, `General suggestion` or `Needs confirmation`.
+5. Never claim the overlay is invisible in every screen share.
+6. Provider keys never in the desktop app; cost controls on all AI usage.
+
+## Users
+
+International-team professionals, developers/consultants, sales/CS, recruiters and
+candidates, managers, and anyone who needs translation support. Initial languages:
+Portuguese and English. Initial markets: Brazil and international.
+
+## Scope
+
+| Priority | Scope |
+|---|---|
+| P0 (MVP) | Desktop shell (Win/macOS), onboarding + permissions, start/pause/resume/stop, system audio + optional mic, device selection, levels + capture indicator, private overlay, shortcuts, live transcript, PT/EN translation, ask-copilot, question detection + suggested answers, copy; auth, usage metering, plans/entitlements, meeting history, summary, billing abstraction, safe logs |
+| P1 | Documents (PDF/DOCX/TXT), profile/knowledge base, RAG with sources, tone preferences, diarization, decisions/risks/action items, export, search, retention controls, cost dashboard |
+| P2 | Teams/orgs, roles, admin/audit, SSO, integrations, optional calendar convenience, enterprise retention/residency, API, analytics |
+
+## Product decisions log
+
+| Date | Decision | Rationale |
+|---|---|---|
+| 2026-11-14 | macOS 14.6+ uses CoreAudio process taps; ScreenCaptureKit only for 13.0–14.5 | Audio-only permission instead of screen recording; no video stream. Brief allows trade-offs with explanation (rule 11) |
+| 2026-11-14 | System audio and mic sent as separate tagged streams | Lets the backend attribute "me" vs "others" and avoid duplicate transcription |
+| 2026-11-14 | UI ships in PT-BR and EN from day one (auto-detected) | Both launch markets |
+| 2026-11-14 | "Demo signal" mode, always labelled DEMO | Lets anyone test the UI/pipeline without devices; never mistaken for real audio |
+| 2026-11-14 | Closing the main window stops capture and quits | No background recording |
+| 2026-11-14 | Linux is a development platform only | Not a target OS in the brief |
+
+## Open product questions (need the owner's decision; not blocking current work)
+
+1. Speech-to-text vendor for launch (Deepgram is the brief's candidate) — needs a current
+   price/latency/PT-BR quality/retention-terms check.
+2. Brazilian payment provider alongside Stripe.
+3. Whether a free tier exists and its minute allowance.
+4. Product name/trademark validation ("MeetPilot" is provisional).
+
+## Success metrics
+
+Activation (first successful capture), time to first transcript, WAU, meetings and minutes
+per user, copilot interaction rate, answer copy rate, usefulness rating, conversion, churn,
+gross/contribution margin, cost per processed minute, crash-free sessions, capture failure
+rate by OS/device. Hypotheses: 5–10 % free→paid, > 90 % monthly paid retention, > 70 %
+contribution margin (validation goals, not forecasts).

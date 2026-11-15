@@ -1,0 +1,43 @@
+[package]
+name = "meetpilot-audio"
+description = "Local, user-controlled audio capture for MeetPilot (system loopback + microphone)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "meetpilot_audio"
+
+[[bin]]
+name = "mp-audio-probe"
+path = "src/bin/mp-audio-probe.rs"
+required-features = ["native"]
+
+[features]
+default = ["native"]
+# Real OS capture backends. Disable to build/test only the portable core.
+native = ["dep:cpal", "dep:objc2", "dep:objc2-foundation", "dep:objc2-core-foundation", "dep:objc2-screen-capture-kit", "dep:objc2-core-media", "dep:objc2-core-audio-types", "dep:objc2-av-foundation", "dep:objc2-core-graphics", "dep:block2", "dep:dispatch2"]
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+log.workspace = true
+
+[target.'cfg(any(windows, target_os = "macos", target_os = "linux"))'.dependencies]
+cpal = { version = "0.18", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6", optional = true }
+objc2-foundation = { version = "0.3", optional = true }
+objc2-core-foundation = { version = "0.3", optional = true }
+objc2-screen-capture-kit = { version = "0.3", optional = true }
+objc2-core-media = { version = "0.3", optional = true }
+objc2-core-audio-types = { version = "0.3", optional = true }
+objc2-av-foundation = { version = "0.3", optional = true }
+objc2-core-graphics = { version = "0.3", optional = true }
+block2 = { version = "0.6", optional = true }
+dispatch2 = { version = "0.3", optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true

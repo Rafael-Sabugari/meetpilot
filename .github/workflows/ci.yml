@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build -w @meetpilot/desktop
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run mypy app tests
+      - run: uv run pytest -W error
+
+  rust-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: System deps (Tauri + ALSA)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "rustfmt, clippy" }
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci && npm run build -w @meetpilot/desktop
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo test -p meetpilot-audio --no-default-features
+
+  # Native compile + tests on the target OSes. CI runners have no real meeting audio,
+  # so this proves compilation, linking, unit/session tests and capability detection;
+  # real capture is validated manually with mp-audio-probe (docs/AUDIO_CAPTURE.md).
+  desktop-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: clippy }
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci && npm run build -w @meetpilot/desktop
+      - run: cargo clippy -p meetpilot-audio -p meetpilot-desktop --all-targets -- -D warnings
+      - run: cargo test -p meetpilot-audio -p meetpilot-desktop
+      - run: cargo build -p meetpilot-audio --bin mp-audio-probe --release
+      - name: Capability detection smoke test
+        run: cargo run -q -p meetpilot-audio --bin mp-audio-probe --release -- capabilities
+      - name: Device enumeration (informational)
+        continue-on-error: true
+        run: cargo run -q -p meetpilot-audio --bin mp-audio-probe --release -- devices
+      - name: Bundle desktop app (unsigned)
+        run: npx tauri build --ci --no-sign
+        working-directory: apps/desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meetpilot-${{ matrix.os }}
+          path: |
+            target/release/bundle/**/*.msi
+            target/release/bundle/**/*.exe
+            target/release/bundle/**/*.dmg
+          if-no-files-found: warn
