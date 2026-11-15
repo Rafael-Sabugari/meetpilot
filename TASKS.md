@@ -2,6 +2,14 @@
 
 Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
 
+## ✅ Completed — Claude as the AI provider + real-key run
+
+- ✅ Anthropic (Claude) LLM adapter, default model **Claude Haiku 5.5** (cheapest; owner's choice); config, factory, production guard; 13 new tests
+- ✅ Real run with the owner's Claude key (`scripts/llm_smoke.py`): ask/reply/summary/translation, 0.7–2.2 s per call; e2e in the app with real Claude (fake STT): 17 translations + 2 automatic suggestions for ≈ US$0.002
+- ✅ Prompt fixes found by the real run: EN→PT translation returned the original; English answers had Portuguese placeholders; summaries said "User"/"Others" instead of "you"
+- ⛔ **Deepgram real run still pending**: key created (dev, expires 2026-12-15) but this build environment's network policy blocks `api.deepgram.com`. Run `backend/scripts/deepgram_smoke.py` on a normal machine.
+- Keys live only in a private file outside the repository (never committed).
+
 ## ✅ Completed — Slice 4 (live assistance: automatic suggestions + translation)
 
 - ✅ Question detector PT/EN (`app/ai/questions.py`): trailing "?" or request opener; directed (second person / request) vs general; ignores tag questions and very short lines; no LLM cost
@@ -123,7 +131,7 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 ## ⛔ Blocked — needs the owner
 
 - ⛔ **Real Deepgram run**: needs a Deepgram API key (never committed). Run `backend/scripts/deepgram_smoke.py`, then the app with `MEETPILOT_STT_PROVIDER=deepgram`.
-- ⛔ **Real OpenAI run**: needs an OpenAI API key; then build a small PT-BR/EN evaluation set to tune the prompt.
+- ⏭ Build a small PT-BR/EN evaluation set of real meeting excerpts to tune prompts on Claude Haiku 5.5 (OpenAI adapter kept, untested with a real key).
 - ⛔ Hardware validation of capture on Windows and macOS (slice 1b) — still pending.
 
 ## ⏭ Next

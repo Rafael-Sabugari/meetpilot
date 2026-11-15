@@ -76,3 +76,17 @@ def test_production_rejects_fake_llm_and_requires_openai_key() -> None:
                 "llm_provider": "openai",
             }
         )
+
+
+def test_production_requires_anthropic_key_for_claude() -> None:
+    with pytest.raises(ValidationError, match="anthropic_api_key"):
+        Settings.model_validate(
+            {
+                "env": "production",
+                "jwt_secret": "x" * 32,
+                "database_url": "postgresql://db/x",
+                "stt_provider": "deepgram",
+                "deepgram_api_key": "dg",
+                "llm_provider": "anthropic",
+            }
+        )

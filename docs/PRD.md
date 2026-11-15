@@ -59,6 +59,7 @@ Portuguese and English. Initial markets: Brazil and international.
 | 2026-11-15 | Question detection is heuristic (no LLM) and only on the others' audio | Zero cost for non-questions; the user's own questions don't need answers |
 | 2026-11-15 | Automatic answers share the copilot quota (200/month trial) | One budget the user understands; UI says so next to the setting |
 | 2026-11-15 | Translation PT ↔ EN of final lines with original/translation/both views, via the same LLM | No extra vendor; partials are not translated (cost, flicker) |
+| 2026-11-15 | Copilot and translation LLM: **Claude Haiku 5.5** (Anthropic), owner's choice of the cheapest Claude model; OpenAI adapter kept as an alternative | Verified Nov 2026: US$0.10 / 0.50 per M input/output tokens for prompts ≤ 100k (ours are ≤ ~5k). Measured: 0.7–2.2 s per call; a 33 s demo meeting with translation + 2 suggestions ≈ US$0.002 |
 | 2026-11-15 | Desktop keeps the session in memory only | Avoids storing tokens on disk before keychain integration; costs a re-login per app start |
 
 ## Open product questions (need the owner's decision; not blocking current work)

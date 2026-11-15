@@ -37,7 +37,12 @@ class Settings(BaseSettings):
     deepgram_mip_opt_out: bool = True
 
     # Copilot (LLM). "fake" is a deterministic local provider for development and tests.
-    llm_provider: Literal["fake", "openai"] = "fake"
+    llm_provider: Literal["fake", "openai", "anthropic"] = "fake"
+    anthropic_api_key: SecretStr | None = None
+    anthropic_base_url: str = "https://api.anthropic.com/v1"
+    # Cheapest current Claude model (US$0.10 / 0.50 per M tokens, Nov 2026).
+    anthropic_model: str = "claude-haiku-5-5"
+    anthropic_timeout_seconds: float = 30.0
     openai_api_key: SecretStr | None = None
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-5-mini"
@@ -80,6 +85,8 @@ class Settings(BaseSettings):
                 raise ValueError("llm_provider=fake is not allowed in staging/production")
             if self.llm_provider == "openai" and not self.openai_api_key:
                 raise ValueError("openai_api_key is required when llm_provider=openai")
+            if self.llm_provider == "anthropic" and not self.anthropic_api_key:
+                raise ValueError("anthropic_api_key is required when llm_provider=anthropic")
             if self.store_raw_audio_default:
                 raise ValueError(
                     "store_raw_audio_default must be False; audio storage is opt-in per user"

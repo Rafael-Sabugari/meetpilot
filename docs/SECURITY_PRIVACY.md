@@ -48,6 +48,8 @@ meetings. Privacy is a product feature, built in from the first slice.
 | Live assistance: rolling context kept in server RAM only for the active meeting (≤ 400 lines), removed on finish/delete; questions, answers and translations are never stored or logged — only counters | `app/realtime/assist.py`, `meetings/router.py` | `test_finishing_a_meeting_forgets_its_live_context`; e2e DB check (usage rows only) |
 | Automatic suggestions can be turned off at any time, also mid-meeting; they respect the copilot quota and rate limits | `assist.py`, `questions.py`, `LiveAssistOptions.tsx` | `test_all_mode_includes_general_questions_and_off_disables`, `test_auto_answers_respect_the_monthly_quota`; e2e |
 | Translation prompt treats transcript text as untrusted and only translates | `app/ai/translation.py` | code review |
+| Claude adapter: key only on the server, sent as a header; provider error bodies never surfaced or logged | `providers/llm/anthropic.py` | `test_http_errors_never_surface_provider_bodies` |
+| Translation input wrapped in `<line>` tags and treated as untrusted (a line saying "ignore your instructions…" is translated, not obeyed — checked with the real model) | `app/ai/translation.py` | `scripts/llm_smoke.py` run 2026-11-15 |
 | UI states that suggestions can be wrong | `CopilotPanel.tsx` | component test |
 | Error events never include audio or transcript text | `gateway.py` | `test_provider_failure_is_reported_as_retryable_error` |
 | `mp-audio-probe --wav` writes audio only when explicitly requested (dev tool) | `mp-audio-probe.rs` | code review |

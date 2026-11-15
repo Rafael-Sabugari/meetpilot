@@ -90,11 +90,15 @@ speech-to-text provider, which returns placeholder text (clearly labelled in the
 
 Requests use `mip_opt_out=true` (audio excluded from Deepgram model training).
 
-### Ask Copilot with OpenAI
+### Ask Copilot with Claude (default choice) or OpenAI
 
 ```bash
-MEETPILOT_LLM_PROVIDER=openai MEETPILOT_OPENAI_API_KEY=... uv run uvicorn app.main:app
+MEETPILOT_LLM_PROVIDER=anthropic MEETPILOT_ANTHROPIC_API_KEY=... uv run uvicorn app.main:app
+# or: MEETPILOT_LLM_PROVIDER=openai MEETPILOT_OPENAI_API_KEY=...
+uv run python scripts/llm_smoke.py   # real answers + translations, latency and cost
 ```
+
+Claude uses **Claude Haiku 5.5** by default, the cheapest current Claude model.
 
 In the app, during or after a transcribed capture: **How do I answer?**, **Summarize so
 far**, or type a question. The overlay has a one-click **How do I answer?**. Each answer is

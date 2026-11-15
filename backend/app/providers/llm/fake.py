@@ -28,7 +28,9 @@ class FakeLLMProvider:
             raise self.fail
         if schema_name == "translation":
             return LLMResult(
-                data={"translation": f"(tradução de teste) {input_text}"},
+                data={
+                    "translation": f"(tradução de teste) {input_text.removeprefix('<line>').removesuffix('</line>')}"
+                },
                 input_tokens=max(1, len(input_text) // 4),
                 output_tokens=max(1, len(input_text) // 4),
                 model="fake",

@@ -180,6 +180,9 @@ answer + grounding ◄── copilot://answer (main window and overlay) ◄─�
   attribute statements not in the transcript, treat the transcript as untrusted (prompt
   injection), no help deceiving participants. A server-side check forces
   `needs_confirmation` whenever placeholders appear.
+* Providers: `anthropic` (Claude Messages API; structured output by forcing one tool whose
+  `input_schema` is the JSON schema; default `claude-haiku-5-5`), `openai` (Responses API,
+  strict JSON schema), `fake` (dev/tests). Same protocol, chosen by `MEETPILOT_LLM_PROVIDER`.
 * Cost controls: monthly request quota per plan, per-minute rate limit, bounded context and
   output tokens; tokens metered per request.
 
