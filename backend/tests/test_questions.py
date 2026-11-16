@@ -152,14 +152,25 @@ def test_unsettled_lines_are_worth_an_ai_check(text: str) -> None:
 @pytest.mark.parametrize(
     "text",
     [
-        "Bom dia a todos, vamos começar a reunião.",
-        "Precisamos fechar os testes até sexta-feira.",
+        "Bom dia a todos, vamos começar a reunião.",  # the AI decides it is not a question
+        "Sobre o Marketing Cloud, seu papel no projeto",  # implicit question, no cue words
+        "And your role in that project",
+    ],
+)
+def test_every_utterance_with_a_few_words_gets_an_ai_check(text: str) -> None:
+    assert worth_checking(text, assess(text), "directed")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
         "Certo?",
         "ok",
+        "Tudo bem,",
         "Você pode explicar como funciona a integração?",  # rules already settled it
     ],
 )
-def test_clear_lines_are_not_checked(text: str) -> None:
+def test_trivial_or_settled_lines_are_not_checked(text: str) -> None:
     assert not worth_checking(text, assess(text), "directed")
 
 

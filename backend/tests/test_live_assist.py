@@ -104,7 +104,8 @@ def test_directed_questions_get_automatic_suggestions(tmp_path: Path) -> None:
             "needs_confirmation",
         )
         # The LLM saw the earlier conversation as context.
-        assert "O módulo de pagamentos está quase pronto." in llm.calls[0]["input_text"]
+        first_answer = next(x for x in llm.calls if x["schema_name"] == "copilot_answer")
+        assert "O módulo de pagamentos está quase pronto." in first_answer["input_text"]
         usage = c.get("/api/v1/usage", headers=auth).json()
         assert usage["copilot_requests_used"] == 3
         # Answers arrive before the stream is closed.
@@ -209,7 +210,8 @@ def test_english_meeting(tmp_path: Path, language: str) -> None:
             "What is the deadline for the module?",
             "What is your experience with Kubernetes?",
         }
-        assert "English" in llm.calls[0]["instructions"]
+        first_answer = next(x for x in llm.calls if x["schema_name"] == "copilot_answer")
+        assert "English" in first_answer["instructions"]
 
 
 def test_deferred_answer_keeps_the_detected_question_id(tmp_path: Path) -> None:
@@ -241,12 +243,14 @@ def test_questions_without_question_mark_are_found_by_the_ai_check(tmp_path: Pat
         found = {d["text"]: d for d in of(events, "question.detected")}
         assert found["E o prazo da integração, como fica"]["via"] == "ai"
         checks = [x for x in llm.calls if x["schema_name"] == "question_check"]
-        # Only lines the rules could not settle are checked (not greetings or statements).
+        # Lines the rules could not settle go to the AI, which judges by meaning; lines the
+        # rules settled (and tag questions like "Certo?") do not.
         checked = {x["input_text"].split("</transcript>")[0].splitlines()[-1] for x in checks}
-        assert checked == {
-            "Others: Qual é o prazo para a entrega do módulo?",
-            "Others: E o prazo da integração, como fica",
-        }
+        assert "Others: E o prazo da integração, como fica" in checked
+        assert "Others: Qual é o prazo para a entrega do módulo?" in checked
+        assert "Others: Bom dia a todos, vamos começar a reunião." in checked
+        assert "Others: Certo?" not in checked
+        assert "Others: Você pode explicar como funciona a integração com o banco?" not in checked
         rows = c.get("/api/v1/usage", headers=auth).json()
         assert rows["copilot_requests_used"] == 4, "checks do not use the copilot quota"
 

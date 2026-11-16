@@ -185,75 +185,20 @@ def assess(text: str) -> Assessment:
     return Assessment(True, second or request, "request" if request else "question")
 
 
-INTERROGATIVE_CUES = (
-    # pt (accents stripped)
-    "como",
-    "qual",
-    "quais",
-    "quando",
-    "onde",
-    "por que",
-    "porque",
-    "pq",
-    "quem",
-    "quanto",
-    "quantos",
-    "quantas",
-    "o que",
-    "sera que",
-    "pode",
-    "poderia",
-    "consegue",
-    "conseguiria",
-    "ja trabalhou",
-    "ja fez",
-    "tem experiencia",
-    "e o",
-    "e a",
-    "e os",
-    "e as",
-    # en
-    "what",
-    "how",
-    "why",
-    "when",
-    "where",
-    "who",
-    "which",
-    "do you",
-    "did you",
-    "have you",
-    "are you",
-    "were you",
-    "can you",
-    "could you",
-    "would you",
-    "will you",
-    "is there",
-    "is it",
-    "any thoughts",
-)
-
-
 def worth_checking(text: str, a: Assessment, mode: AutoMode) -> bool:
-    """Lines the rules could not settle but that may still be a question for the user.
+    """Utterances the rules did not settle go to the AI, which judges by meaning.
 
-    STT often drops the "?" and people ask without "você"/"you" ("E o prazo, como fica").
-    Such lines get a cheap AI check (`app/ai/question_check.py`) with recent context.
+    Punctuation from speech recognition is unreliable and people ask without "?" or "você"
+    ("E o prazo, como fica", "Sobre o Marketing Cloud, seu papel"). So every utterance from
+    the other side with a few words gets a cheap AI check (`app/ai/question_check.py`) with
+    recent context; the rules are only a fast path for obvious questions.
     """
     if mode == "off" or a.reason in ("empty", "tag_or_too_short", "too_short"):
         return False
     if a.is_question:
         # Confirmed question; only its target is unclear.
         return mode == "directed" and not a.directed
-    n = _norm(text)
-    words = n.split()
-    if len(words) < MIN_WORDS:
-        return False
-    padded = f" {n} "
-    cue = any(f" {c} " in padded for c in INTERROGATIVE_CUES)
-    second = bool(SECOND_PERSON.intersection(words))
-    return cue or second
+    return len(_norm(text).split()) >= MIN_WORDS
 
 
 def should_answer(a: Assessment, mode: AutoMode) -> bool:
