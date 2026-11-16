@@ -180,3 +180,28 @@ def test_check_input_has_recent_lines_and_short_user_context() -> None:
     assert body.splitlines()[0] == "User: linha 12" and "Others: linha 19" in body
     assert body.count("\n") == 8  # exactly the last 8 lines
     assert "Sou o Rafael." in text and len(text.split("</user_context>")[0]) < 700
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Claro. Me conta caso em que você trabalhou com data cloud ou marketing cloud, "
+        "destacando sua participação no projeto.",
+        "Ótimo. E me conta um pouco, sobre um projeto recente com data cloud.",
+        "Ok, so tell me about a time you led a migration.",
+    ],
+)
+def test_requests_and_questions_inside_longer_utterances(text: str) -> None:
+    a = assess(text)
+    assert a.is_question and a.directed
+
+
+def test_question_in_the_middle_of_an_utterance_is_found() -> None:
+    t = "Entendi. Qual foi o maior desafio nesse projeto? Pode ser técnico ou de time."
+    a = assess(t)
+    assert a.is_question, "the AI check then decides whether it was for the user"
+    assert worth_checking(t, a, "directed")
+
+
+def test_a_tag_question_after_a_statement_is_still_not_a_question() -> None:
+    assert not assess("O deploy foi ontem à noite. Certo?").is_question

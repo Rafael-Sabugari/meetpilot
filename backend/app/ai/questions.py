@@ -115,6 +115,49 @@ class Assessment:
     reason: str
 
 
+# Words people put before a question or request ("Claro. E me conta…", "Ok, so tell me…").
+FILLERS = frozenset(
+    [
+        "e",
+        "entao",
+        "claro",
+        "otimo",
+        "ok",
+        "okay",
+        "beleza",
+        "certo",
+        "perfeito",
+        "legal",
+        "bom",
+        "bem",
+        "show",
+        "tranquilo",
+        "and",
+        "so",
+        "ok",
+        "great",
+        "cool",
+        "right",
+        "alright",
+        "now",
+        "well",
+        "perfect",
+    ]
+)
+_SENTENCE = re.compile(r"(?<=[.!?;])\s+")
+
+
+def _strip_fillers(n: str) -> str:
+    words = n.split()
+    while words and words[0] in FILLERS:
+        words.pop(0)
+    return " ".join(words)
+
+
+def _is_request(n: str) -> bool:
+    return any(n == r or n.startswith(r + " ") for r in REQUEST_OPENERS)
+
+
 def assess(text: str) -> Assessment:
     n = _norm(text)
     words = n.split()
@@ -122,8 +165,16 @@ def assess(text: str) -> Assessment:
         return Assessment(False, False, "empty")
     if n in TAG_QUESTIONS or (text.rstrip().endswith("?") and len(words) < MIN_WORDS):
         return Assessment(False, False, "tag_or_too_short")
-    asks = text.rstrip().endswith("?")
-    request = any(n == r or n.startswith(r + " ") for r in REQUEST_OPENERS)
+    # A merged utterance can hold several sentences: judge each one.
+    sentences = [x for x in _SENTENCE.split(text.strip()) if x.strip()]
+    asks = False
+    request = False
+    for sent in sentences:
+        sn = _norm(sent)
+        if sent.rstrip().endswith("?") and sn not in TAG_QUESTIONS and len(sn.split()) >= MIN_WORDS:
+            asks = True
+        if _is_request(_strip_fillers(sn)):
+            request = True
     # Openers alone ("Como eu disse…") are statements too often; we rely on the STT's "?"
     # for questions and on explicit request phrases for imperatives.
     if not (asks or request):

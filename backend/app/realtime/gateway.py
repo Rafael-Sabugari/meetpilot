@@ -248,7 +248,7 @@ class StreamSession:
     async def background(self) -> None:
         last_usage = time.monotonic()
         while True:
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(0.5)  # also ends utterances ~1.5-2 s after the speaker stops
             now = time.monotonic()
             for source, session in list(self.stt.items()):
                 if self.paused or now - self.last_audio.get(source, 0) >= KEEPALIVE_EVERY_S:
@@ -409,6 +409,7 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
                 min_interval=settings.copilot_auto_min_interval_seconds,
                 max_per_minute=settings.copilot_auto_max_per_minute,
             ),
+            utterance_gap=settings.copilot_utterance_gap_seconds,
         ),
     )
     try:

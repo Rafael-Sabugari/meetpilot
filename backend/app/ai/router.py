@@ -31,7 +31,7 @@ class CopilotRequest(BaseModel):
     # Answer language; defaults to the meeting language.
     language: Literal["pt-BR", "en"] | None = None
     # Written by the user about themselves and the meeting; used for this answer only.
-    user_context: str | None = Field(default=None, max_length=4_000)
+    user_context: str | None = Field(default=None, max_length=20_000)
 
     @model_validator(mode="after")
     def _question_for_ask(self) -> "CopilotRequest":

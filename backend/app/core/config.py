@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # Automatic suggestions: minimum seconds between two auto answers and cap per minute.
     copilot_auto_min_interval_seconds: float = 3.0
     copilot_auto_max_per_minute: int = 10
+    # Silence (s) from the other side that ends an utterance before question detection;
+    # 0 judges every recognized segment on its own.
+    copilot_utterance_gap_seconds: float = 1.5
 
     # Privacy defaults (docs/SECURITY_PRIVACY.md): raw audio is never stored by default.
     store_raw_audio_default: bool = False

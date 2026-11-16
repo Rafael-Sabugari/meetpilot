@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RealtimeEnvelope, TranscriptSegment } from "@meetpilot/shared-types";
-import { emptyTranscript, MAX_FINAL_SEGMENTS, recentLines, transcriptAsText, transcriptReducer, type TranscriptState } from "./transcript";
+import { emptyTranscript, MAX_FINAL_SEGMENTS, recentLines, sameText, transcriptAsText, transcriptReducer, type TranscriptState } from "./transcript";
 
 let seq = 0;
 const env = (type: RealtimeEnvelope["type"], payload: unknown): RealtimeEnvelope => ({
@@ -141,5 +141,22 @@ describe("translation and detected questions", () => {
     s = transcriptReducer(s, { kind: "link", status: { state: "connecting" } });
     expect(s.questions).toEqual([]);
     expect(s.translations).toEqual({});
+  });
+});
+
+describe("questions split by the recognizer and same-language translations", () => {
+  it("marks every piece of a split question", () => {
+    let s = apply(emptyTranscript, env("transcript.final", seg("system", "Me conta caso com data cloud", true, 0)));
+    s = apply(s, env("transcript.final", seg("system", "ou marketing cloud.", true, 1000)));
+    s = apply(s, env("question.detected", { question_id: "q", segment_id: "system-1000", segment_ids: ["system-0", "system-1000"], text: "…", directed: true }));
+    expect(s.questions).toEqual(["system-0", "system-1000"]);
+  });
+
+  it("does not show a translation identical to the original", () => {
+    let s = apply(emptyTranscript, env("transcript.final", seg("system", "Ótimo. E me conta pouco,", true, 0)));
+    s = apply(s, env("translation.updated", { segment_id: "system-0", source: "system", target_language: "pt-BR", text: "Otimo, e me conta pouco" }));
+    expect(s.translations).toEqual({});
+    expect(sameText("Great!", "great")).toBe(true);
+    expect(sameText("Great", "Ótimo")).toBe(false);
   });
 });

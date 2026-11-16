@@ -100,6 +100,8 @@ export interface LiveOptions {
 export interface QuestionDetectedPayload {
   question_id: string;
   segment_id: string;
+  /** All recognized pieces of the utterance (a question split at a pause). */
+  segment_ids?: string[];
   text: string;
   directed: boolean;
   /** "rules" = free heuristic; "ai" = checked by the AI because the rules were unsure. */

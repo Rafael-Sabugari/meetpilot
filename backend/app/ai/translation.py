@@ -45,3 +45,10 @@ async def translate(provider: LLMProvider, text: str, target: str) -> tuple[str,
     if not out:
         raise LLMError("the AI returned an empty translation", retryable=True)
     return out[:4_000], result
+
+
+def same_text(a: str, b: str) -> bool:
+    """True when a "translation" only differs by case, accents or punctuation."""
+    from app.ai.questions import _norm
+
+    return _norm(a) == _norm(b)

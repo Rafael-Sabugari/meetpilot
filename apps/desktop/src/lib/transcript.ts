@@ -39,6 +39,18 @@ export const emptyTranscript: TranscriptState = {
   questions: [],
 };
 
+/** Equal except for case, accents, punctuation and spacing. */
+export function sameText(a: string, b: string): boolean {
+  const n = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+  return n(a) === n(b);
+}
+
 function bounded<T>(rec: Record<string, T>, key: string, value: T): Record<string, T> {
   const next = { ...rec, [key]: value };
   const keys = Object.keys(next);
@@ -87,12 +99,16 @@ export function transcriptReducer(state: TranscriptState, action: TranscriptActi
         case "translation.updated": {
           const p = env.payload as TranslationPayload;
           if (!p.text?.trim()) return next;
+          // A "translation" equal to the original (already in that language) adds nothing.
+          const original = next.finals.find((f) => f.segment_id === p.segment_id)?.text;
+          if (original !== undefined && sameText(original, p.text)) return next;
           return { ...next, translations: bounded(next.translations, p.segment_id, p.text) };
         }
         case "question.detected": {
           const p = env.payload as QuestionDetectedPayload;
-          if (next.questions.includes(p.segment_id)) return next;
-          return { ...next, questions: [...next.questions, p.segment_id].slice(-MAX_FINAL_SEGMENTS) };
+          const ids = (p.segment_ids?.length ? p.segment_ids : [p.segment_id]).filter((id) => !next.questions.includes(id));
+          if (!ids.length) return next;
+          return { ...next, questions: [...next.questions, ...ids].slice(-MAX_FINAL_SEGMENTS) };
         }
         case "usage.updated":
           return { ...next, usage: env.payload as UsagePayload };

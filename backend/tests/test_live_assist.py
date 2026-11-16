@@ -29,7 +29,7 @@ def make_client(tmp_path: Path, llm: FakeLLMProvider, **overrides: Any) -> TestC
         jwt_secret="k" * 40,
         database_url=f"sqlite+aiosqlite:///{tmp_path / 'live.db'}",
         copilot_auto_min_interval_seconds=0,
-        **overrides,
+        **({"copilot_utterance_gap_seconds": 0} | overrides),
     )
     return TestClient(create_app(s, stt_provider=FakeSTTProvider(), llm_provider=llm))
 
@@ -221,6 +221,7 @@ def test_deferred_answer_keeps_the_detected_question_id(tmp_path: Path) -> None:
         jwt_secret="k" * 40,
         database_url=f"sqlite+aiosqlite:///{tmp_path / 'live.db'}",
         copilot_auto_min_interval_seconds=3600,
+        copilot_utterance_gap_seconds=0,
     )
     with TestClient(create_app(s, stt_provider=FakeSTTProvider(), llm_provider=llm)) as c:
         auth = register_and_login(c)
@@ -270,7 +271,7 @@ def test_user_context_is_limited(tmp_path: Path) -> None:
     llm = FakeLLMProvider()
     with make_client(tmp_path, llm) as c:
         auth = register_and_login(c)
-        events = run_meeting(c, auth, settings={"user_context": "x" * 4_001}, system_lines=1)
+        events = run_meeting(c, auth, settings={"user_context": "x" * 20_001}, system_lines=1)
         assert of(events, "error")[0]["code"] == "bad_settings"
 
 

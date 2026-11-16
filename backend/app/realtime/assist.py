@@ -26,7 +26,7 @@ from app.ai.context import ContextSegment, build_context
 from app.ai.copilot import Tone, ask
 from app.ai.question_check import check as check_question
 from app.ai.questions import AutoAnswerPolicy, AutoMode, assess, should_answer, worth_checking
-from app.ai.translation import needs_translation, translate
+from app.ai.translation import needs_translation, same_text, translate
 from app.providers.llm.base import LLMError, LLMProvider, LLMResult
 from app.realtime.events import EventType, TranscriptSegment
 
@@ -42,7 +42,7 @@ class LiveSettings(BaseModel):
     tone: Tone = "natural"
     translate_to: Literal["pt-BR", "en"] | None = None
     # Written by the user about themselves and the meeting (kept in memory only).
-    user_context: str | None = Field(default=None, max_length=4_000)
+    user_context: str | None = Field(default=None, max_length=20_000)
 
     @field_validator("user_context")
     @classmethod
@@ -61,6 +61,8 @@ class LiveAssist:
     MAX_TRANSLATION_BACKLOG = 20
     MAX_CHECKS_PER_MINUTE = 30
     MAX_CHECKS_IN_FLIGHT = 3
+    MAX_UTTERANCE_PARTS = 6
+    MAX_UTTERANCE_CHARS = 800
 
     def __init__(
         self,
@@ -74,7 +76,9 @@ class LiveAssist:
         max_output_tokens: int,
         policy: AutoAnswerPolicy | None = None,
         clock: Callable[[], float] = time.monotonic,
+        utterance_gap: float = 1.5,
     ) -> None:
+        self.utterance_gap = utterance_gap
         self.emit = emit
         self.llm = llm
         self.meeting_language = meeting_language
@@ -97,6 +101,8 @@ class LiveAssist:
         self._backlog_warned = False
         self._quota_warned = False
         self._checks: deque[float] = deque()
+        self._utterance: list[TranscriptSegment] = []
+        self._utterance_at = 0.0
         self._checks_in_flight = 0
 
     # -- settings -----------------------------------------------------------------------
@@ -117,15 +123,44 @@ class LiveAssist:
         if needs_translation(self.meeting_language, self.settings.translate_to):
             self._enqueue_translation(seg)
         if seg.source == "system":
-            mode = self.settings.auto_suggestions
-            a = assess(text)
-            if should_answer(a, mode):
-                await self._detected(seg, text, a.directed, "rules")
-            elif worth_checking(text, a, mode) and self._check_allowed():
-                recent = list(self.context)[-8:]
-                self._spawn(self._check(seg, text, recent))
+            # Speech recognition splits a sentence at short pauses ("…com data cloud" /
+            # "ou marketing cloud…?"). Wait until the other person stops talking and judge
+            # the whole utterance, so one question gives one answer.
+            self._utterance.append(seg)
+            self._utterance_at = self.clock()
+            if (
+                self.utterance_gap <= 0
+                or len(self._utterance) >= self.MAX_UTTERANCE_PARTS
+                or sum(len(s.text) for s in self._utterance) >= self.MAX_UTTERANCE_CHARS
+            ):
+                await self._flush_utterance()
+        else:
+            # The user started talking: the other person's turn is over.
+            await self._flush_utterance()
 
-    async def _detected(self, seg: TranscriptSegment, text: str, directed: bool, via: str) -> None:
+    async def _flush_utterance(self) -> None:
+        parts, self._utterance = self._utterance, []
+        if not parts:
+            return
+        text = " ".join(p.text.strip() for p in parts if p.text.strip())
+        last = parts[-1]
+        mode = self.settings.auto_suggestions
+        a = assess(text)
+        ids = [p.segment_id for p in parts]
+        if should_answer(a, mode):
+            await self._detected(last, text, a.directed, "rules", ids)
+        elif worth_checking(text, a, mode) and self._check_allowed():
+            recent = list(self.context)[-8:]
+            self._spawn(self._check(last, text, recent, ids))
+
+    async def _detected(
+        self,
+        seg: TranscriptSegment,
+        text: str,
+        directed: bool,
+        via: str,
+        segment_ids: list[str] | None = None,
+    ) -> None:
         # Derived from the segment id, which stays unique across reconnects.
         qid = f"q-{seg.segment_id}"
         self._question_ids[text] = qid
@@ -136,6 +171,7 @@ class LiveAssist:
             {
                 "question_id": qid,
                 "segment_id": seg.segment_id,
+                "segment_ids": segment_ids or [seg.segment_id],
                 "text": text,
                 "directed": directed,
                 "via": via,
@@ -156,7 +192,13 @@ class LiveAssist:
         self._checks.append(now)
         return True
 
-    async def _check(self, seg: TranscriptSegment, text: str, recent: list[ContextSegment]) -> None:
+    async def _check(
+        self,
+        seg: TranscriptSegment,
+        text: str,
+        recent: list[ContextSegment],
+        segment_ids: list[str] | None = None,
+    ) -> None:
         self._checks_in_flight += 1
         try:
             is_q, directed, result = await check_question(
@@ -169,9 +211,11 @@ class LiveAssist:
         self._meter(result, "question_check")
         mode = self.settings.auto_suggestions
         if is_q and (mode == "all" or (mode == "directed" and directed)):
-            await self._detected(seg, text, directed, "ai")
+            await self._detected(seg, text, directed, "ai", segment_ids)
 
     async def tick(self) -> None:
+        if self._utterance and self.clock() - self._utterance_at >= self.utterance_gap:
+            await self._flush_utterance()
         nxt = self.policy.tick(self.clock())
         if nxt is not None:
             self._spawn(self._answer(self._qid(nxt), nxt))
@@ -302,6 +346,8 @@ class LiveAssist:
             finally:
                 self._translations.task_done()
             self._meter(result, "translation_request")
+            if same_text(text, seg.text):
+                continue  # already in the target language: nothing to show
             await self.emit(
                 EventType.TRANSLATION_UPDATED,
                 {
@@ -317,6 +363,7 @@ class LiveAssist:
     async def drain(self, timeout: float) -> None:
         """Let in-flight answers and queued translations finish (bounded), then stop."""
         deadline = self.clock() + timeout
+        await self._flush_utterance()
         with contextlib.suppress(TimeoutError):
             if self._translator is not None:
                 await asyncio.wait_for(self._translations.join(), timeout)
