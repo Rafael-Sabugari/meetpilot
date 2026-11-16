@@ -397,7 +397,7 @@ def test_translation_identical_to_the_answer_is_dropped() -> None:
 
     res = asyncio.run(
         ask(
-            Echo(),  # type: ignore[arg-type]
+            Echo(),
             mode="ask",
             question="q",
             ctx=build_context([], 1000),
