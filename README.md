@@ -111,6 +111,11 @@ automatic suggestion counts as one copilot question. Write about yourself and th
 **My context** (kept only on your computer) and suggestions use it instead of leaving
 `[blanks]`.
 
+**Transcription: Deepgram (cloud, paid) or Whisper on this Mac (free).** Choose it under
+Live transcription. Whisper runs on your computer (the audio never leaves it; only the
+text goes to the server for suggestions); the first time, the app downloads the speech
+model (~550 MB).
+
 ## Checks
 
 ```bash

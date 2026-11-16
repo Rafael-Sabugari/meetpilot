@@ -136,3 +136,6 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .ctx-input { width: 100%; resize: vertical; min-height: 90px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: inherit; font: inherit; }
 .overlay__grip { text-align: center; font-size: 10px; letter-spacing: 2px; color: var(--muted); opacity: 0.6; line-height: 1; margin: -4px 0 -2px; cursor: grab; }
 .overlay__grip:hover { opacity: 1; }
+.engine { display: grid; gap: 6px; margin: 6px 0; }
+.engine__model { display: grid; gap: 4px; }
+.engine__bar { flex: 1 1 auto; min-width: 120px; }

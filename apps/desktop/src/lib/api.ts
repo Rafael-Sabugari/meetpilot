@@ -83,8 +83,37 @@ export interface StartRequest {
   systemAudio: SourceSelection | null;
   microphone: SourceSelection | null;
   demo: boolean;
-  /** Present only when the user enabled live transcription (sends audio to the server). */
-  transcription?: { language: Language; live?: LiveOptions } | null;
+  /** Present only when the user enabled live transcription. */
+  transcription?: {
+    language: Language;
+    live?: LiveOptions;
+    /** "cloud" = Deepgram via the server; "local" = Whisper on this computer (free). */
+    engine?: SttEngine;
+    model?: string | null;
+  } | null;
+}
+
+export type SttEngine = "cloud" | "local";
+
+export interface LocalModel {
+  id: string;
+  approx_bytes: number;
+  downloaded: boolean;
+  recommended: boolean;
+}
+
+export interface LocalModels {
+  /** False when this build has no Whisper engine (only macOS builds include it). */
+  available: boolean;
+  models: LocalModel[];
+}
+
+export interface DownloadEvent {
+  id: string;
+  state: "progress" | "done" | "error" | "cancelled";
+  downloaded: number;
+  total: number | null;
+  message?: string;
 }
 
 export const isTauri = (): boolean =>
@@ -96,6 +125,9 @@ export function toCommandError(e: unknown): CommandError {
 }
 
 export const api = {
+  localModels: () => invoke<LocalModels>("local_models"),
+  localDownload: (id: string) => invoke<void>("local_download", { id }),
+  localCancelDownload: (id: string) => invoke<void>("local_cancel_download", { id }),
   capabilities: () => invoke<CapabilitiesDto>("get_capabilities"),
   devices: () => invoke<DevicesDto>("list_devices"),
   requestPermission: (source: AudioSource) =>
@@ -126,6 +158,8 @@ export const events = {
     listen<CaptureError>("capture://error", (e) => cb(e.payload)),
   onLink: (cb: (s: LinkStatus) => void): Promise<UnlistenFn> =>
     listen<LinkStatus>("realtime://status", (e) => cb(e.payload)),
+  onLocalDownload: (cb: (e: DownloadEvent) => void): Promise<UnlistenFn> =>
+    listen<DownloadEvent>("localstt://download", (e) => cb(e.payload)),
   onServer: (cb: (env: RealtimeEnvelope) => void): Promise<UnlistenFn> =>
     listen<RealtimeEnvelope>("realtime://event", (e) => cb(e.payload)),
   onCopilotAnswer: (cb: (a: AnswerEvent) => void): Promise<UnlistenFn> =>

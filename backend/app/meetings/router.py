@@ -19,6 +19,8 @@ Language = Literal["pt-BR", "en", "multi"]
 class MeetingCreate(BaseModel):
     language: Language = "pt-BR"
     title: str | None = Field(default=None, max_length=200)
+    # "local" = transcribed on the user's computer (free; no audio minutes needed).
+    stt: Literal["cloud", "local"] = "cloud"
 
 
 class MeetingOut(BaseModel):
@@ -78,7 +80,7 @@ async def create_meeting(
     svc: Annotated[TokenService, Depends(tokens)],
 ) -> MeetingCreated:
     usage = await summary(db, request.app.state.settings, user)
-    if usage.remaining_seconds <= 0:
+    if usage.remaining_seconds <= 0 and body.stt == "cloud":
         raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, "monthly audio minutes exhausted")
     m = Meeting(user_id=user.id, language=body.language, title=body.title)
     db.add(m)

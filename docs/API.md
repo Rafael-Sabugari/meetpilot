@@ -81,6 +81,16 @@ or answer text is stored or logged. Works for active and finished meetings.
 1. Client sends, within 5 s: `{"type": "auth", "token": "<stream_token>"}`.
 2. Server replies `capture.started` `{audio_format, provider, remaining_seconds}`.
 3. Client sends binary frames: `[u8 source 0=system 1=microphone][u32 LE seq][640 B PCM s16le 16 kHz mono]` (645 bytes, 20 ms).
+   **Free mode (Whisper on the user's computer):** create the meeting with `"stt": "local"`
+   (allowed even with no audio minutes left) and add `"stt": "local"` to the auth message.
+   The client then sends **no audio**; instead
+   `{"type": "transcript.segment", "source": "system"|"microphone", "text" (≤ 2000), "start_ms", "end_ms", "is_final", "language"?}`.
+   The server emits the usual `transcript.partial/final` (segment id `<source>-<start_ms>`)
+   and runs live assistance on finals. Finals starting before the last delivered final of
+   that source are dropped (re-sent after a reconnect); ≤ 20 segments/s; binary frames get
+   one `audio_not_expected` error and are ignored; invalid segments get `bad_segment`.
+   `capture.started.provider` is `"whisper-local"`. No audio minutes are metered
+   (`local_audio_seconds` usage rows are informational).
 4. Client control (text): `capture.paused`, `capture.resumed`, `capture.stopped`, and
    `{"type": "copilot.settings", "auto_suggestions": "off"|"directed"|"all", "tone": "natural"|"concise"|"technical"|"formal", "translate_to": "pt-BR"|"en"|null}`
    plus optional `"user_context": "<≤ 4000 chars written by the user>"`

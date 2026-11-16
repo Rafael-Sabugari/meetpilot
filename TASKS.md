@@ -2,6 +2,14 @@
 
 Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
 
+## ✅ Completed — Free transcription with Whisper on the Mac (2026-11-16)
+
+- ✅ Server: `stt=local` meetings/streams accept `transcript.segment` text instead of audio (no audio minutes, flood guard, replay dedupe, audio ignored); 7 tests
+- ✅ Realtime client: free mode (`stt: local` auth), segments queued while disconnected and recent finals re-sent after reconnect; test with a dropping mock server
+- ✅ App: on-device engine from the earlier private-mode work (VAD segmenter, decode queue, verified model download, whisper.cpp + Metal) now feeds the server; per-meeting choice "Deepgram (nuvem, pago) / Whisper neste Mac (grátis)" with model download + progress; remembered
+- ✅ CI (macOS): clippy with the engine, **real Whisper inference test** (tiny model + whisper.cpp sample), installer built with `--features local-whisper`
+- ⏳ Real test on the owner's Mac (download ~547 MB, Portuguese accuracy and latency)
+
 ## ✅ Completed — First run on the owner's Mac (2026-11-16)
 
 - ✅ Installed on the owner's MacBook (arm64, macOS 26.6): one-click `Iniciar MeetPilot.command`, then LaunchAgent so the local server starts at login (`~/Library/Application Support/MeetPilot`, logs in `~/Library/Logs/MeetPilot`)

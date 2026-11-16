@@ -217,6 +217,22 @@ desktop: copilot.settings ─► LiveAssist.update_settings   (re-sent by the cl
   Ask-Copilot requests still send their own context from the desktop (server stays
   stateless for them).
 
+## 3.8 Free transcription mode (Whisper on the user's computer)
+
+```text
+mic/system audio ─► LocalTranscriber (crates/local-stt: VAD segmenter + whisper.cpp, Metal)
+                      └─ text segments ─► StreamHandle (stt=local) ─► gateway ─► same events
+                                                                     └─► LiveAssist (Claude)
+```
+
+* Selected per meeting in the app ("Transcrição: Deepgram / Whisper neste Mac"). Audio
+  never leaves the computer; only recognized text reaches the server, which keeps question
+  detection and suggestions identical to the cloud path.
+* Model: `ggml-large-v3-turbo-q5_0` (~547 MB), downloaded once from the official whisper.cpp
+  repository with SHA-1 verification; stored in the app's data folder.
+* Built into macOS installers (`--features local-whisper`, Apple GPU); Windows builds keep
+  cloud transcription only for now (the option is hidden there).
+
 ## 4. Backend (`backend/`)
 
 FastAPI modular monolith; modules are packages under `app/` and are extracted only when

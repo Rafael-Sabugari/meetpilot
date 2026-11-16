@@ -16,6 +16,12 @@ describe("capture preferences", () => {
     expect(parseCapturePrefs("{broken", "en")).toEqual(defaultCapturePrefs("en"));
   });
 
+  it("remembers the transcription engine (Deepgram by default)", () => {
+    expect(parseCapturePrefs(null, "pt").engine).toBe("cloud");
+    expect(parseCapturePrefs(JSON.stringify({ engine: "local" }), "pt").engine).toBe("local");
+    expect(parseCapturePrefs(JSON.stringify({ engine: "gpu" }), "pt").engine).toBe("cloud");
+  });
+
   it("falls back to the default device when the remembered one is not connected", () => {
     expect(availableDevice("AirPods Pro de Rafael", ["MacBook Air Microphone", "AirPods Pro de Rafael"])).toBe("AirPods Pro de Rafael");
     expect(availableDevice("AirPods Pro de Rafael", ["MacBook Air Microphone"])).toBe("");

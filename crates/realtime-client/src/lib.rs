@@ -12,6 +12,6 @@ pub use api::{
     StreamGrant, TokenPair, Usage,
 };
 pub use stream::{
-    encode_frame, spawn_stream, EventSink, LinkStatus, Source, StreamConfig, StreamEvent,
-    StreamHandle, TokenFuture, TokenProvider,
+    encode_frame, segment_message, spawn_stream, EventSink, LinkStatus, Source, StreamConfig,
+    StreamEvent, StreamHandle, TokenFuture, TokenProvider,
 };

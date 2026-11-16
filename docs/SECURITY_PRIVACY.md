@@ -51,6 +51,8 @@ meetings. Privacy is a product feature, built in from the first slice.
 | Translation prompt treats transcript text as untrusted and only translates | `app/ai/translation.py` | code review |
 | Claude adapter: key only on the server, sent as a header; provider error bodies never surfaced or logged | `providers/llm/anthropic.py` | `test_http_errors_never_surface_provider_bodies` |
 | Translation input wrapped in `<line>` tags and treated as untrusted (a line saying "ignore your instructions…" is translated, not obeyed — checked with the real model) | `app/ai/translation.py` | `scripts/llm_smoke.py` run 2026-11-15 |
+| Free mode: audio is transcribed on the user's computer and never sent; only text segments go to the server (in memory, never stored); server ignores any audio in that mode | `crates/local-stt`, `capture.rs`, `gateway.py` | `test_audio_is_ignored_in_local_mode`, `free_mode_sends_text_segments_and_redelivers_after_reconnect` |
+| Whisper model downloads verified by SHA-1 before use | `crates/local-stt/src/models.rs` | `tests/download.rs` |
 | UI states that suggestions can be wrong | `CopilotPanel.tsx` | component test |
 | Error events never include audio or transcript text | `gateway.py` | `test_provider_failure_is_reported_as_retryable_error` |
 | `mp-audio-probe --wav` writes audio only when explicitly requested (dev tool) | `mp-audio-probe.rs` | code review |

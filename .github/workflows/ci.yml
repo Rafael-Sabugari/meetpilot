@@ -95,8 +95,26 @@ jobs:
       - name: Device enumeration (informational)
         continue-on-error: true
         run: cargo run -q -p meetpilot-audio --bin mp-audio-probe --release -- devices
+      # macOS: free transcription with Whisper on the Apple GPU (Metal) is built in.
+      - name: Clippy with local Whisper (macOS)
+        if: runner.os == 'macOS'
+        run: cargo clippy -p meetpilot-desktop --features local-whisper --all-targets -- -D warnings
+      - name: Real Whisper inference test (macOS, tiny model + whisper.cpp sample)
+        if: runner.os == 'macOS'
+        run: |
+          curl -sSfL -o /tmp/ggml-tiny.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
+          echo "bd577a113a864445d4c299885e0cb97d4ba92b5f  /tmp/ggml-tiny.bin" | shasum -a 1 -c -
+          curl -sSfL -o /tmp/jfk.wav https://raw.githubusercontent.com/ggml-org/whisper.cpp/master/samples/jfk.wav
+          MEETPILOT_REQUIRE_REAL_MODEL=1 MEETPILOT_TEST_WHISPER_MODEL=/tmp/ggml-tiny.bin MEETPILOT_TEST_WAV=/tmp/jfk.wav \
+            cargo test -p meetpilot-local-stt --features metal --test real_model -- --nocapture
       - name: Bundle desktop app (unsigned)
-        run: npx tauri build --ci --no-sign
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            npx tauri build --ci --no-sign --features local-whisper
+          else
+            npx tauri build --ci --no-sign
+          fi
         working-directory: apps/desktop
       - uses: actions/upload-artifact@v5
         with:

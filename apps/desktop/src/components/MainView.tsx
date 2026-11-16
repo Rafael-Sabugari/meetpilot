@@ -10,6 +10,9 @@ import { useCopilot } from "../hooks/useCopilot";
 import { CopilotPanel } from "./CopilotPanel";
 import { LiveAssistOptions } from "./LiveAssistOptions";
 import { UserContextCard } from "./UserContextCard";
+import { TranscriptionEngine, pickModel } from "./TranscriptionEngine";
+import { useLocalModels } from "../hooks/useLocalModels";
+import type { SttEngine } from "../lib/api";
 import { availableDevice, loadCapturePrefs, saveCapturePrefs } from "../lib/capturePrefs";
 import { loadLivePrefs, saveLivePrefs, toLiveOptions, type LivePrefs } from "../lib/liveOptions";
 import { AccountPanel } from "./AccountPanel";
@@ -51,6 +54,12 @@ export function MainView({ t }: { t: T }) {
   const copilot = useCopilot();
   const [transcribe, setTranscribe] = useState(saved.transcribe && hasTranscriptionConsent());
   const [language, setLanguage] = useState<Language>(saved.language as Language);
+  const [engine, setEngine] = useState<SttEngine>(saved.engine);
+  const localModels = useLocalModels();
+  const localModel = pickModel(localModels.data);
+  // Free transcription only where this build includes Whisper (macOS); otherwise Deepgram.
+  const effectiveEngine: SttEngine = engine === "local" && localModels.data?.available ? "local" : "cloud";
+  const needsModel = transcribe && effectiveEngine === "local" && !localModel?.downloaded;
   // Apply remembered devices once the device list is known (fall back to default if absent).
   useEffect(() => {
     if (devices.outputs.length) setSystemDevice((d) => d || availableDevice(saved.systemDevice, devices.outputs.map((x) => x.id)));
@@ -60,8 +69,8 @@ export function MainView({ t }: { t: T }) {
     if (saved.protectOverlay) api.setOverlayProtection(true).then(setProtect).catch(() => {});
   }, [saved]);
   useEffect(() => {
-    saveCapturePrefs({ useSystem, useMic, systemDevice, micDevice, transcribe, language, protectOverlay: protect });
-  }, [useSystem, useMic, systemDevice, micDevice, transcribe, language, protect]);
+    saveCapturePrefs({ useSystem, useMic, systemDevice, micDevice, transcribe, language, protectOverlay: protect, engine });
+  }, [useSystem, useMic, systemDevice, micDevice, transcribe, language, protect, engine]);
   const [showConsent, setShowConsent] = useState(false);
   const [live, setLive] = useState<LivePrefs>(loadLivePrefs);
 
@@ -89,7 +98,15 @@ export function MainView({ t }: { t: T }) {
       systemAudio: useSystem ? { device_id: systemDevice || null } : null,
       microphone: useMic ? { device_id: micDevice || null } : null,
       demo,
-      transcription: transcribe && canTranscribe ? { language, live: toLiveOptions(live) } : null,
+      transcription:
+        transcribe && canTranscribe
+          ? {
+              language,
+              live: toLiveOptions(live),
+              engine: effectiveEngine,
+              model: effectiveEngine === "local" ? (localModel?.id ?? null) : null,
+            }
+          : null,
     });
   };
   const onStop = async () => {
@@ -224,6 +241,17 @@ export function MainView({ t }: { t: T }) {
                   ))}
                 </select>
               </label>
+              <TranscriptionEngine
+                t={t}
+                engine={effectiveEngine}
+                onChange={setEngine}
+                models={localModels.data}
+                progress={localModels.progress}
+                error={localModels.error}
+                onDownload={localModels.download}
+                onCancel={localModels.cancel}
+                disabled={!transcribe || !canTranscribe}
+              />
             </div>
           </fieldset>
           {/* Outside the fieldset: these can be changed during a meeting. */}
@@ -231,9 +259,16 @@ export function MainView({ t }: { t: T }) {
 
           <div className="controls">
             {idle ? (
-              <button className="btn btn--primary" disabled={cap.busy || (!useSystem && !useMic)} onClick={onStart}>
-                ● {t("controls.start")}
-              </button>
+              <>
+                <button
+                  className="btn btn--primary"
+                  disabled={cap.busy || (!useSystem && !useMic) || needsModel}
+                  onClick={onStart}
+                >
+                  ● {t("controls.start")}
+                </button>
+                {needsModel && <span className="muted small">{t("stt.needModel")}</span>}
+              </>
             ) : (
               <>
                 {state === "capturing" ? (

@@ -20,6 +20,8 @@ enum Behaviour {
     DropFirstAfter(usize),
     /// Close every connection right after auth with this code.
     Reject(u16),
+    /// Free mode: close abruptly after this many text segments on the first connection.
+    DropFirstAfterSegments(usize),
 }
 
 #[derive(Default)]
@@ -29,6 +31,8 @@ struct Log {
     seqs: Vec<u32>,
     controls: Vec<String>,
     bad_frames: usize,
+    auth_stt: Vec<Option<String>>,
+    segments: Vec<serde_json::Value>,
 }
 
 async fn mock_gateway(behaviour: Behaviour) -> (String, Arc<Mutex<Log>>) {
@@ -50,10 +54,12 @@ async fn mock_gateway(behaviour: Behaviour) -> (String, Arc<Mutex<Log>>) {
                     return;
                 };
                 let v: serde_json::Value = serde_json::from_str(auth.as_str()).unwrap();
-                l.lock()
-                    .unwrap()
-                    .tokens
-                    .push(v["token"].as_str().unwrap().to_string());
+                {
+                    let mut g = l.lock().unwrap();
+                    g.tokens.push(v["token"].as_str().unwrap().to_string());
+                    g.auth_stt.push(v["stt"].as_str().map(str::to_string));
+                }
+                let mut segs_this_conn = 0usize;
                 if let Behaviour::Reject(code) = behaviour {
                     let _ = ws
                         .close(Some(CloseFrame {
@@ -114,6 +120,21 @@ async fn mock_gateway(behaviour: Behaviour) -> (String, Arc<Mutex<Log>>) {
                             let v: serde_json::Value = serde_json::from_str(t.as_str()).unwrap();
                             let kind = v["type"].as_str().unwrap().to_string();
                             l.lock().unwrap().controls.push(kind.clone());
+                            if kind == "transcript.segment" {
+                                l.lock().unwrap().segments.push(v.clone());
+                                segs_this_conn += 1;
+                                if let Behaviour::DropFirstAfterSegments(k) = behaviour {
+                                    if n == 0 && segs_this_conn == k {
+                                        let _ = ws
+                                            .close(Some(CloseFrame {
+                                                code: CloseCode::Error,
+                                                reason: "boom".into(),
+                                            }))
+                                            .await;
+                                        return;
+                                    }
+                                }
+                            }
                             if kind == "capture.stopped" {
                                 ws.send(env(
                                     "transcript.final",
@@ -387,5 +408,66 @@ async fn live_settings_are_sent_and_resent_after_reconnect() {
         "settings re-sent on the new connection: {:?}",
         log.lock().unwrap().controls
     );
+    h.stop().await;
+}
+
+#[tokio::test]
+async fn free_mode_sends_text_segments_and_redelivers_after_reconnect() {
+    use meetpilot_realtime::segment_message;
+    let (url, log) = mock_gateway(Behaviour::DropFirstAfterSegments(2)).await;
+    let (_c, sink) = collector();
+    let (tokens, _) = counting_tokens();
+    let mut cfg = fast(url);
+    cfg.local = true;
+    let h = spawn_stream(cfg, "initial".into(), tokens, sink);
+    h.send_segment(segment_message(
+        "system",
+        "Qual é a sua",
+        0,
+        900,
+        false,
+        Some("pt"),
+    ));
+    h.send_segment(segment_message(
+        "system",
+        "Qual é a sua experiência?",
+        0,
+        1500,
+        true,
+        Some("pt"),
+    ));
+    // The connection drops here; this one is said while reconnecting.
+    h.send_segment(segment_message(
+        "microphone",
+        "Tenho três anos.",
+        2000,
+        3500,
+        true,
+        None,
+    ));
+    assert!(
+        wait_for(|| {
+            let g = log.lock().unwrap();
+            g.auth_stt.len() >= 2 && g.segments.iter().any(|s| s["text"] == "Tenho três anos.")
+        })
+        .await,
+        "segments delivered after reconnect"
+    );
+    {
+        let g = log.lock().unwrap();
+        assert!(g.auth_stt.iter().all(|s| s.as_deref() == Some("local")));
+        assert_eq!(
+            g.frames_per_conn.iter().sum::<usize>(),
+            0,
+            "no audio in free mode"
+        );
+        // The final sent just before the drop is re-sent (the server drops duplicates).
+        let finals = g
+            .segments
+            .iter()
+            .filter(|s| s["text"] == "Qual é a sua experiência?")
+            .count();
+        assert!(finals >= 1);
+    }
     h.stop().await;
 }

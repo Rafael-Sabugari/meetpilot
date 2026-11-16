@@ -102,6 +102,8 @@ pub struct StreamConfig {
     pub max_backoff: Duration,
     pub connect_timeout: Duration,
     pub stop_timeout: Duration,
+    /// Free mode: transcription happens on this computer; only text segments are sent.
+    pub local: bool,
 }
 
 impl StreamConfig {
@@ -115,6 +117,7 @@ impl StreamConfig {
             max_backoff: Duration::from_secs(10),
             connect_timeout: Duration::from_secs(10),
             stop_timeout: Duration::from_secs(10),
+            local: false,
         }
     }
 }
@@ -123,7 +126,33 @@ enum Control {
     Pause,
     Resume,
     Settings(serde_json::Value),
+    Segment(serde_json::Value),
     Stop(oneshot::Sender<()>),
+}
+
+/// Segments kept while disconnected (free mode).
+const MAX_PENDING_SEGMENTS: usize = 500;
+/// Recently sent finals re-sent after a reconnect (the server drops ones it already has).
+const REPLAY_FINALS: usize = 20;
+
+/// Build the `transcript.segment` message the server expects in free (local) mode.
+pub fn segment_message(
+    source: &str,
+    text: &str,
+    start_ms: u64,
+    end_ms: u64,
+    is_final: bool,
+    language: Option<&str>,
+) -> serde_json::Value {
+    serde_json::json!({
+        "type": "transcript.segment",
+        "source": source,
+        "text": text,
+        "start_ms": start_ms,
+        "end_ms": end_ms,
+        "is_final": is_final,
+        "language": language,
+    })
 }
 
 /// Build the `copilot.settings` control message from a JSON object of options.
@@ -185,6 +214,12 @@ impl StreamHandle {
             .send(Control::Settings(settings_message(&options)));
     }
 
+    /// Free mode: send a transcript segment produced on this computer (see
+    /// `segment_message`). Kept while disconnected and delivered after reconnecting.
+    pub fn send_segment(&self, segment: serde_json::Value) {
+        let _ = self.control.send(Control::Segment(segment));
+    }
+
     /// Ask the server to finish (flushing final transcripts) and wait for the link to close.
     pub async fn stop(&self) {
         let (tx, rx) = oneshot::channel();
@@ -216,6 +251,8 @@ pub fn spawn_stream(
         settings: None,
         stop_ack: None,
         replay: VecDeque::new(),
+        pending_segments: VecDeque::new(),
+        recent_finals: VecDeque::new(),
     };
     let fin = Arc::clone(&finished);
     tokio::spawn(async move {
@@ -253,9 +290,33 @@ struct Worker {
     settings: Option<serde_json::Value>,
     stop_ack: Option<oneshot::Sender<()>>,
     replay: VecDeque<Vec<u8>>,
+    pending_segments: VecDeque<serde_json::Value>,
+    recent_finals: VecDeque<serde_json::Value>,
 }
 
 impl Worker {
+    fn queue_segment(&mut self, seg: serde_json::Value) {
+        self.pending_segments.push_back(seg);
+        while self.pending_segments.len() > MAX_PENDING_SEGMENTS {
+            // Drop the oldest partial first; finals matter more.
+            let idx = self
+                .pending_segments
+                .iter()
+                .position(|s| s.get("is_final") != Some(&serde_json::Value::Bool(true)))
+                .unwrap_or(0);
+            self.pending_segments.remove(idx);
+        }
+    }
+
+    fn remember_final(&mut self, seg: &serde_json::Value) {
+        if seg.get("is_final") == Some(&serde_json::Value::Bool(true)) {
+            self.recent_finals.push_back(seg.clone());
+            while self.recent_finals.len() > REPLAY_FINALS {
+                self.recent_finals.pop_front();
+            }
+        }
+    }
+
     fn remember(&mut self, frame: &[u8]) {
         if self.config.replay_frames == 0 {
             return;
@@ -340,6 +401,7 @@ impl Worker {
                                 Some(Control::Pause) => self.paused = true,
                                 Some(Control::Resume) => self.paused = false,
                                 Some(Control::Settings(v)) => self.settings = Some(v),
+                                Some(Control::Segment(v)) => self.queue_segment(v),
                                 Some(Control::Stop(ack)) => { self.stop_ack = Some(ack); break; }
                                 None => return,
                             }
@@ -367,7 +429,11 @@ impl Worker {
             }
             Err(_) => return SessionEnd::Retry,
         };
-        let auth = serde_json::json!({ "type": "auth", "token": token }).to_string();
+        let mut auth = serde_json::json!({ "type": "auth", "token": token });
+        if self.config.local {
+            auth["stt"] = "local".into();
+        }
+        let auth = auth.to_string();
         if ws.send(Message::text(auth)).await.is_err() {
             return SessionEnd::Retry;
         }
@@ -394,6 +460,20 @@ impl Worker {
             if ws.send(Message::text(settings.to_string())).await.is_err() {
                 return SessionEnd::Retry;
             }
+        }
+        // Free mode: re-send recent finals (server drops duplicates), then what was said
+        // while disconnected.
+        for seg in self.recent_finals.clone() {
+            if ws.send(Message::text(seg.to_string())).await.is_err() {
+                return SessionEnd::Retry;
+            }
+        }
+        while let Some(seg) = self.pending_segments.pop_front() {
+            if ws.send(Message::text(seg.to_string())).await.is_err() {
+                self.pending_segments.push_front(seg);
+                return SessionEnd::Retry;
+            }
+            self.remember_final(&seg);
         }
         // Re-send recent frames that may have been lost in flight (server dedups by seq).
         for frame in self.replay.clone() {
@@ -441,6 +521,13 @@ impl Worker {
                         let text = v.to_string();
                         self.settings = Some(v);
                         if ws.send(Message::text(text)).await.is_err() { return SessionEnd::Retry; }
+                    }
+                    Some(Control::Segment(v)) => {
+                        if ws.send(Message::text(v.to_string())).await.is_err() {
+                            self.queue_segment(v);
+                            return SessionEnd::Retry;
+                        }
+                        self.remember_final(&v);
                     }
                     Some(Control::Stop(ack)) => {
                         // Send what is already queued, then ask the server to finish.

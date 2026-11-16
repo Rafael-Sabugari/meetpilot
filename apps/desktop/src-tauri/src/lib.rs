@@ -8,6 +8,7 @@
 mod account;
 mod capture;
 mod copilot;
+mod local;
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
@@ -59,6 +60,7 @@ pub fn run() {
         .manage(CaptureState::default())
         .manage(AccountState::default())
         .setup(move |app| {
+            app.manage(local::LocalState::new(app.handle()));
             for sc in [pause_shortcut, overlay_shortcut] {
                 if let Err(e) = app.global_shortcut().register(sc) {
                     // Another app may own the shortcut; the app stays fully usable without it.
@@ -95,6 +97,10 @@ pub fn run() {
             account::account_logout,
             account::account_status,
             account::account_usage,
+            local::local_models,
+            local::local_download,
+            local::local_cancel_download,
+            local::local_delete_model,
             copilot::ask_copilot,
         ])
         .run(tauri::generate_context!())

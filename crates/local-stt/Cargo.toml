@@ -1,0 +1,28 @@
+[package]
+name = "meetpilot-local-stt"
+description = "Private mode: on-device speech-to-text (Whisper via whisper.cpp). Audio never leaves the computer."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Real Whisper inference (compiles whisper.cpp; needs CMake and a C++ compiler).
+whisper = ["dep:whisper-rs"]
+# Apple GPU acceleration.
+metal = ["whisper", "whisper-rs/metal"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+log.workspace = true
+sha1 = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "http2", "stream"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+tokio = { version = "1", features = ["fs", "io-util", "rt"] }
+whisper-rs = { version = "0.16", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "fs"] }

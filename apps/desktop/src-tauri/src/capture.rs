@@ -72,6 +72,8 @@ type CmdResult<T> = Result<T, CommandError>;
 struct Uplink {
     handle: Arc<StreamHandle>,
     meeting_id: String,
+    /// Free mode: Whisper on this computer; only its text goes through `handle`.
+    local: Option<Arc<meetpilot_local_stt::LocalTranscriber>>,
 }
 
 struct Active {
@@ -236,6 +238,22 @@ pub struct TranscriptionRequest {
     pub language: String,
     #[serde(default)]
     pub live: Option<LiveOptions>,
+    /// Who turns speech into text.
+    #[serde(default)]
+    pub engine: Engine,
+    /// Local model id (free mode only); defaults to the recommended one.
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Engine {
+    /// MeetPilot server + Deepgram (audio goes to the server).
+    #[default]
+    Cloud,
+    /// Whisper on this computer: free, audio never leaves it; only text goes to the server.
+    Local,
 }
 
 #[derive(Debug, Deserialize)]
@@ -288,6 +306,7 @@ fn idle_dto() -> StatusDto {
 fn event_handler(
     app: AppHandle,
     uplink: Option<Arc<StreamHandle>>,
+    local: Option<Arc<meetpilot_local_stt::LocalTranscriber>>,
 ) -> meetpilot_audio::EventHandler {
     Arc::new(move |ev| match ev {
         SessionEvent::Level(l) => {
@@ -302,7 +321,14 @@ fn event_handler(
         }
         // Never logged. Forwarded only when transcription is on; non-blocking.
         SessionEvent::Frame(f) => {
-            if let Some(h) = &uplink {
+            if let Some(l) = &local {
+                // Free mode: transcribed here; the audio is not sent anywhere.
+                let source = match f.source {
+                    AudioSource::System => meetpilot_local_stt::Source::System,
+                    AudioSource::Microphone => meetpilot_local_stt::Source::Microphone,
+                };
+                l.push_frame(source, f.seq, &f.samples);
+            } else if let Some(h) = &uplink {
                 let source = match f.source {
                     AudioSource::System => Source::System,
                     AudioSource::Microphone => Source::Microphone,
@@ -322,10 +348,10 @@ pub fn set_overlay_visible(app: &AppHandle, visible: bool) {
     }
 }
 
-async fn open_uplink(app: &AppHandle, language: &str) -> CmdResult<Uplink> {
+async fn open_uplink(app: &AppHandle, language: &str, local: bool) -> CmdResult<Uplink> {
     let accounts = app.state::<AccountState>();
     let (client, access) = accounts.access().await?;
-    let created = client.create_meeting(&access, language).await?;
+    let created = client.create_meeting(&access, language, local).await?;
     let meeting_id = created.meeting.id.clone();
 
     let tokens: TokenProvider = {
@@ -359,19 +385,21 @@ async fn open_uplink(app: &AppHandle, language: &str) -> CmdResult<Uplink> {
         })
     };
     let ws_url = client.ws_url(&created.stream.stream_path);
-    let handle = spawn_stream(
-        StreamConfig::new(ws_url),
-        created.stream.stream_token,
-        tokens,
-        sink,
-    );
+    let mut config = StreamConfig::new(ws_url);
+    config.local = local;
+    let handle = spawn_stream(config, created.stream.stream_token, tokens, sink);
     Ok(Uplink {
         handle: Arc::new(handle),
         meeting_id,
+        local: None,
     })
 }
 
 async fn close_uplink(app: &AppHandle, uplink: Uplink) {
+    if let Some(l) = uplink.local.clone() {
+        // Transcribe what is still queued and send it before closing the link.
+        let _ = tauri::async_runtime::spawn_blocking(move || l.stop(Duration::from_secs(8))).await;
+    }
     // Waits for the server to flush final transcripts (bounded by the stream's stop timeout).
     uplink.handle.stop().await;
     match app.state::<AccountState>().access().await {
@@ -411,9 +439,24 @@ pub async fn start_capture(
     // Connect to the server first so no captured audio is missed.
     let uplink = match &request.transcription {
         Some(t) => {
-            let u = open_uplink(&app, &t.language).await?;
+            let local = t.engine == Engine::Local;
+            let mut u = open_uplink(&app, &t.language, local).await?;
             if let Some(live) = &t.live {
                 u.handle.set_settings(live.to_server());
+            }
+            if local {
+                match crate::local::start_local(
+                    &app,
+                    &t.language,
+                    t.model.as_deref(),
+                    Arc::clone(&u.handle),
+                ) {
+                    Ok(l) => u.local = Some(l),
+                    Err(e) => {
+                        close_uplink(&app, u).await;
+                        return Err(e);
+                    }
+                }
             }
             Some(u)
         }
@@ -424,7 +467,11 @@ pub async fn start_capture(
         system_audio: request.system_audio,
         microphone: request.microphone,
     };
-    let handler = event_handler(app.clone(), uplink.as_ref().map(|u| Arc::clone(&u.handle)));
+    let handler = event_handler(
+        app.clone(),
+        uplink.as_ref().map(|u| Arc::clone(&u.handle)),
+        uplink.as_ref().and_then(|u| u.local.clone()),
+    );
     // Opening OS streams can block (permission prompts); do it off the async runtime.
     let (session, result) = tauri::async_runtime::spawn_blocking(move || {
         let session = CaptureSession::new(provider, handler);
@@ -487,6 +534,9 @@ pub fn pause_capture(state: State<'_, CaptureState>) -> CmdResult<StatusDto> {
         let s = a.session.pause()?;
         if let Some(u) = &a.uplink {
             u.handle.pause();
+            if let Some(l) = &u.local {
+                l.pause();
+            }
         }
         Ok(dto(a, s))
     })
@@ -497,6 +547,9 @@ pub fn resume_capture(state: State<'_, CaptureState>) -> CmdResult<StatusDto> {
     with_active(&state, |a| {
         if let Some(u) = &a.uplink {
             u.handle.resume();
+            if let Some(l) = &u.local {
+                l.resume();
+            }
         }
         let s = a.session.resume()?;
         Ok(dto(a, s))
@@ -511,12 +564,18 @@ pub fn toggle_pause(state: &CaptureState) -> CmdResult<StatusDto> {
                 let s = a.session.pause()?;
                 if let Some(u) = &a.uplink {
                     u.handle.pause();
+                    if let Some(l) = &u.local {
+                        l.pause();
+                    }
                 }
                 s
             }
             SessionState::Paused => {
                 if let Some(u) = &a.uplink {
                     u.handle.resume();
+                    if let Some(l) = &u.local {
+                        l.resume();
+                    }
                 }
                 a.session.resume()?
             }
@@ -629,6 +688,22 @@ mod tests {
         let t = r.transcription.unwrap();
         assert_eq!(t.language, "pt-BR");
         assert!(t.live.is_none());
+    }
+
+    #[test]
+    fn transcription_engine_defaults_to_cloud_and_accepts_local() {
+        let t: TranscriptionRequest = serde_json::from_str(r#"{"language":"pt-BR"}"#).unwrap();
+        assert_eq!(t.engine, Engine::Cloud);
+        let t: TranscriptionRequest = serde_json::from_str(
+            r#"{"language":"multi","engine":"local","model":"large-v3-turbo-q5_0"}"#,
+        )
+        .unwrap();
+        assert_eq!(t.engine, Engine::Local);
+        assert_eq!(t.model.as_deref(), Some("large-v3-turbo-q5_0"));
+        assert!(serde_json::from_str::<TranscriptionRequest>(
+            r#"{"language":"pt-BR","engine":"magic"}"#
+        )
+        .is_err());
     }
 
     #[test]

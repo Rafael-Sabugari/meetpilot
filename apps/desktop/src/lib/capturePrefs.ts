@@ -10,6 +10,8 @@ export interface CapturePrefs {
   transcribe: boolean;
   language: MeetingLanguage;
   protectOverlay: boolean;
+  /** "cloud" = Deepgram; "local" = Whisper on this computer (free). */
+  engine: "cloud" | "local";
 }
 
 const KEY = "meetpilot.capture.v1";
@@ -24,6 +26,7 @@ export function defaultCapturePrefs(browserLanguage = "en"): CapturePrefs {
     transcribe: false,
     language: browserLanguage.toLowerCase().startsWith("pt") ? "pt-BR" : "en",
     protectOverlay: false,
+    engine: "cloud",
   };
 }
 
@@ -45,6 +48,7 @@ export function parseCapturePrefs(raw: string | null, browserLanguage = "en"): C
     transcribe: bool(v.transcribe, d.transcribe),
     language: LANGS.includes(v.language as MeetingLanguage) ? (v.language as MeetingLanguage) : d.language,
     protectOverlay: bool(v.protectOverlay, d.protectOverlay),
+    engine: v.engine === "local" ? "local" : "cloud",
   };
 }
 

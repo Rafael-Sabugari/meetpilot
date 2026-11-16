@@ -271,12 +271,14 @@ impl ApiClient {
         &self,
         access: &str,
         language: &str,
+        local: bool,
     ) -> Result<MeetingCreated, ApiError> {
+        let stt = if local { "local" } else { "cloud" };
         let req = self
             .http
             .post(self.url("api/v1/meetings"))
             .bearer_auth(access)
-            .json(&serde_json::json!({ "language": language }));
+            .json(&serde_json::json!({ "language": language, "stt": stt }));
         self.send(req).await
     }
 

@@ -1,8 +1,12 @@
 """Authenticated realtime gateway: desktop audio frames in, transcript events out.
 
 Wire protocol (docs/API.md §3):
-* First client message (text, within 5 s): {"type": "auth", "token": "<stream token>"}.
+* First client message (text, within 5 s): {"type": "auth", "token": "<stream token>"}, plus
+  optional "stt": "local" when the desktop transcribes on the user's computer (free mode).
 * Binary audio frames: [u8 source 0=system 1=microphone][u32 LE seq][640 B PCM s16le 16 kHz].
+* Local mode: no audio at all; the desktop sends {"type": "transcript.segment", "source",
+  "text", "start_ms", "end_ms", "is_final", "language"?} and the server treats each segment
+  like one from a cloud provider (events, live assistance). No audio minutes are metered.
 * Text control: {"type": "capture.paused" | "capture.resumed" | "capture.stopped"}.
 * Server events: versioned `Envelope` JSON.
 
@@ -20,6 +24,7 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.ai.context import ContextSegment
@@ -30,7 +35,13 @@ from app.db.models import Meeting, UsageRecord, User
 from app.providers.llm.base import LLMProvider
 from app.providers.stt.base import StreamingSTTProvider, StreamingSTTSession, STTError
 from app.realtime.assist import LiveAssist
-from app.realtime.events import AudioFormat, AudioSource, Envelope, EventType
+from app.realtime.events import (
+    AudioFormat,
+    AudioSource,
+    Envelope,
+    EventType,
+    TranscriptSegment,
+)
 from app.usage.service import count_this_period, summary
 
 log = logging.getLogger("meetpilot.realtime")
@@ -45,6 +56,21 @@ PCM_BYTES = AudioFormat().sample_rate * AudioFormat().frame_ms // 1000 * 2  # 64
 FRAME_BYTES = FRAME_HEADER.size + PCM_BYTES
 FRAME_MS = AudioFormat().frame_ms
 SOURCES: dict[int, AudioSource] = {0: "system", 1: "microphone"}
+LOCAL_PROVIDER = "whisper-local"
+LOCAL_SEGMENTS_PER_SECOND = 20
+
+
+class LocalSegmentIn(BaseModel):
+    """A transcript segment produced on the user's computer (local mode)."""
+
+    source: AudioSource
+    text: str = Field(max_length=2_000)
+    start_ms: int = Field(ge=0, le=86_400_000)
+    end_ms: int = Field(ge=0, le=86_400_000)
+    is_final: bool
+    language: str | None = Field(default=None, max_length=12)
+
+
 SEQ_COLUMNS: tuple[tuple[AudioSource, str], ...] = (
     ("system", "last_seq_system"),
     ("microphone", "last_seq_microphone"),
@@ -68,6 +94,9 @@ class ActiveStreams:
     def __init__(self) -> None:
         self._counts: dict[str, int] = {}
         self.last_seq: dict[tuple[str, AudioSource], int] = {}
+        # Local mode: end of the last final per meeting/source, so finals re-sent after a
+        # reconnect are not shown or answered twice.
+        self.local_final_end: dict[tuple[str, AudioSource], int] = {}
         # Rolling transcript per meeting for live assistance (memory only, never stored).
         self.contexts: dict[str, deque[ContextSegment]] = {}
 
@@ -108,8 +137,16 @@ class StreamSession:
         remaining_seconds: float,
         last_seq: dict[tuple[str, AudioSource], int] | None = None,
         assist_factory: "Callable[[StreamSession], LiveAssist] | None" = None,
+        local: bool = False,
+        local_final_end: dict[tuple[str, AudioSource], int] | None = None,
     ) -> None:
         self.ws = ws
+        # Local mode: transcription happens on the user's computer; we only get text.
+        self.local = local
+        self.local_final_end = local_final_end if local_final_end is not None else {}
+        self.local_seconds: dict[AudioSource, float] = {"system": 0.0, "microphone": 0.0}
+        self._local_window = (0.0, 0)
+        self._audio_warned = False
         # Shared across reconnects of the same meeting: replayed frames are dropped.
         self.last_seq = last_seq if last_seq is not None else {}
         self.duplicates = 0
@@ -190,6 +227,14 @@ class StreamSession:
             self.stt.pop(source, None)  # reopened on the next frame
 
     async def handle_audio(self, data: bytes) -> bool:
+        if self.local:
+            # Free mode never sends audio; ignore it rather than transcribe and bill it.
+            if not self._audio_warned:
+                self._audio_warned = True
+                await self.error(
+                    "audio_not_expected", "local mode sends text, not audio", retryable=False
+                )
+            return True
         try:
             source, seq, pcm = parse_frame(data)
         except ValueError as e:
@@ -238,12 +283,52 @@ class StreamSession:
             await self.emit(EventType.CAPTURE_RESUMED)
         elif kind == EventType.CAPTURE_STOPPED:
             return False
+        elif kind == "transcript.segment" and self.local:
+            await self.handle_local_segment(msg)
         elif kind == "copilot.settings" and self.assist is not None:
             try:
                 self.assist.update_settings(msg)
             except ValueError:
                 await self.error("bad_settings", "invalid live settings", retryable=False)
         return True
+
+    async def handle_local_segment(self, msg: dict[str, Any]) -> None:
+        if self.paused:
+            return
+        now = time.monotonic()
+        start, count = self._local_window
+        if now - start >= 1.0:
+            start, count = now, 0
+        if count >= LOCAL_SEGMENTS_PER_SECOND:
+            return  # flood guard; the next partial/final supersedes a dropped partial
+        self._local_window = (start, count + 1)
+        try:
+            seg = LocalSegmentIn.model_validate(msg)
+        except ValidationError:
+            await self.error("bad_segment", "invalid transcript segment", retryable=False)
+            return
+        text = seg.text.strip()
+        if not text or seg.end_ms < seg.start_ms:
+            return
+        key = (self.meeting.id, seg.source)
+        if seg.start_ms < self.local_final_end.get(key, -1):
+            return  # already delivered (re-sent after a reconnect)
+        if seg.is_final:
+            self.local_final_end[key] = seg.end_ms
+            self.local_seconds[seg.source] += (seg.end_ms - seg.start_ms) / 1000
+        out = TranscriptSegment(
+            segment_id=f"{seg.source}-{seg.start_ms}",
+            source=seg.source,
+            text=text,
+            language=seg.language,
+            start_ms=seg.start_ms,
+            end_ms=seg.end_ms,
+            is_final=seg.is_final,
+        )
+        kind = EventType.TRANSCRIPT_FINAL if seg.is_final else EventType.TRANSCRIPT_PARTIAL
+        await self.emit(kind, out.model_dump())
+        if seg.is_final and self.assist is not None:
+            await self.assist.on_final(out)
 
     async def background(self) -> None:
         last_usage = time.monotonic()
@@ -273,7 +358,7 @@ class StreamSession:
             EventType.CAPTURE_STARTED,
             {
                 "audio_format": AudioFormat().model_dump(),
-                "provider": self.provider.name,
+                "provider": LOCAL_PROVIDER if self.local else self.provider.name,
                 "remaining_seconds": round(self.remaining, 2),
             },
         )
@@ -320,6 +405,19 @@ async def _persist_usage(
                         source=source,
                         provider=provider,
                         quantity=secs,
+                    )
+                )
+        for source, secs in s.local_seconds.items():
+            if secs > 0:
+                # Informational only: local transcription is free and not counted in quotas.
+                db.add(
+                    UsageRecord(
+                        user_id=s.user.id,
+                        meeting_id=s.meeting.id,
+                        kind="local_audio_seconds",
+                        source=source,
+                        provider=LOCAL_PROVIDER,
+                        quantity=round(secs, 2),
                     )
                 )
         for item in s.assist.usage if s.assist is not None else []:
@@ -377,7 +475,8 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
         usage = await summary(db, settings, user)
         copilot_used = await count_this_period(db, user, "copilot_request")
 
-    if usage.remaining_seconds <= 0:
+    local = first.get("stt") == "local"
+    if usage.remaining_seconds <= 0 and not local:
         await ws.close(Close.QUOTA, "quota exceeded")
         return
     if not active.acquire(user.id, settings.max_concurrent_sessions_per_user):
@@ -397,6 +496,8 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
         provider=provider,
         remaining_seconds=usage.remaining_seconds,
         last_seq=active.last_seq,
+        local=local,
+        local_final_end=active.local_final_end,
         assist_factory=lambda sess: LiveAssist(
             emit=sess.emit,
             llm=llm,

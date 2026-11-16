@@ -13,7 +13,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+default = []
+# Free transcription with Whisper on this computer (Apple GPU). Enabled for macOS builds:
+# `tauri build --features local-whisper`. Needs CMake and a C++ compiler.
+local-whisper = ["meetpilot-local-stt/metal"]
+
 [dependencies]
+meetpilot-local-stt = { path = "../../../crates/local-stt" }
 meetpilot-audio = { path = "../../../crates/audio-capture" }
 meetpilot-realtime = { path = "../../../crates/realtime-client" }
 tokio = { version = "1", features = ["sync", "time"] }
