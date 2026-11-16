@@ -80,6 +80,8 @@ export interface CopilotAnswer {
   grounding: Grounding;
   explanation: string;
   missing_info: string[];
+  /** The answer in the user's own language, when it differs from the spoken one. */
+  answer_translation?: string | null;
   provider: string;
   requests_remaining: number;
 }

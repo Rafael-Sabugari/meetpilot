@@ -32,6 +32,8 @@ class CopilotRequest(BaseModel):
     language: Literal["pt-BR", "en"] | None = None
     # Written by the user about themselves and the meeting; used for this answer only.
     user_context: str | None = Field(default=None, max_length=20_000)
+    # Also return the answer translated into this language (the user's own), when different.
+    translate_to: Literal["pt-BR", "en"] | None = None
 
     @model_validator(mode="after")
     def _question_for_ask(self) -> "CopilotRequest":
@@ -56,6 +58,7 @@ class CopilotResponse(BaseModel):
     grounding: Grounding
     explanation: str
     missing_info: list[str]
+    answer_translation: str | None = None
     provider: str
     context: ContextInfo
     usage: TokenUsage
@@ -92,6 +95,7 @@ async def copilot(
             tone=body.tone,
             max_output_tokens=settings.copilot_max_output_tokens,
             user_context=body.user_context,
+            translate_to=body.translate_to,
         )
     except LLMError as e:
         code = status.HTTP_503_SERVICE_UNAVAILABLE if e.retryable else status.HTTP_502_BAD_GATEWAY
@@ -119,6 +123,7 @@ async def copilot(
         grounding=result.grounding,
         explanation=result.explanation,
         missing_info=result.missing_info,
+        answer_translation=result.answer_translation,
         provider=provider.name,
         context=ContextInfo(
             used_segments=ctx.used_segments,

@@ -272,6 +272,7 @@ class LiveAssist:
                     tone=self.settings.tone,
                     max_output_tokens=self.max_output_tokens,
                     user_context=self.settings.user_context,
+                    translate_to=self.settings.translate_to,
                 )
             except LLMError as e:
                 self.copilot_remaining += 1  # failed calls are not billed
@@ -299,6 +300,7 @@ class LiveAssist:
                     "grounding": result.grounding,
                     "explanation": result.explanation,
                     "missing_info": result.missing_info,
+                    "answer_translation": result.answer_translation,
                     "provider": self.llm.name,
                     "requests_remaining": max(0, self.copilot_remaining),
                 },

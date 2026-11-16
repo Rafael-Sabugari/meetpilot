@@ -55,6 +55,8 @@ export interface AskRequest {
   tone: CopilotTone;
   language?: "pt-BR" | "en" | null;
   userContext?: string | null;
+  /** Also translate the answer into this language. */
+  translateTo?: "pt-BR" | "en" | null;
 }
 
 export type AnswerEvent = CopilotAnswer & { id: number; mode: CopilotMode; question: string | null };

@@ -285,3 +285,16 @@ def test_off_mode_spends_nothing_on_checks(tmp_path: Path) -> None:
         auth = register_and_login(c)
         run_meeting(c, auth, settings={"auto_suggestions": "off"}, system_lines=8)
         assert llm.calls == []
+
+
+def test_auto_answers_also_come_in_the_users_language(tmp_path: Path) -> None:
+    llm = FakeLLMProvider()
+    with make_client(tmp_path, llm) as c:
+        auth = register_and_login(c)
+        events = run_meeting(c, auth, settings={"auto_suggestions": "all", "translate_to": "en"})
+        completed = of(events, "answer.completed")
+        assert completed
+        assert all(a["answer_translation"].startswith("(tradução de teste)") for a in completed)
+
+        events = run_meeting(c, auth, settings={"auto_suggestions": "all", "translate_to": None})
+        assert all(a["answer_translation"] is None for a in of(events, "answer.completed"))

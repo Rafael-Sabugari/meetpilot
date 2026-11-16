@@ -124,6 +124,7 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .answer--compact { padding: 6px 8px; font-size: 13px; }
 .answer--compact .answer__text { font-size: 13px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .warn-text { color: #fcd34d; }
+.answer__tr { color: var(--muted); font-style: italic; font-size: 13.5px; line-height: 1.4; white-space: pre-wrap; border-left: 2px solid var(--line); padding-left: 8px; }
 .overlay__copilot { display: grid; gap: 6px; min-height: 0; }
 .overlay { display: flex; flex-direction: column; overflow: hidden; }
 .overlay > * { flex: none; }

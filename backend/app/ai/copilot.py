@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from app.ai.context import BuiltContext
+from app.ai.translation import same_text
 from app.providers.llm.base import LLMError, LLMProvider
 
 Grounding = Literal[
@@ -53,6 +54,27 @@ SCHEMA: dict[str, Any] = {
     "required": ["answer", "grounding", "explanation", "missing_info"],
     "additionalProperties": False,
 }
+
+
+def schema_for(with_translation: bool) -> dict[str, Any]:
+    if not with_translation:
+        return SCHEMA
+    props = {**SCHEMA["properties"], "answer_translation": {"type": "string"}}
+    return {**SCHEMA, "properties": props, "required": [*SCHEMA["required"], "answer_translation"]}
+
+
+def translation_rule(answer_language: str, translate_to: str | None) -> str:
+    """Extra rule asking for the answer in the User's own language, when it differs."""
+    if not translate_to or translate_to == answer_language:
+        return ""
+    target = LANGUAGE_NAMES.get(translate_to, translate_to)
+    return (
+        "\n10. answer_translation: the same answer translated faithfully into "
+        f"{target}, so the User understands exactly what they will say. Same meaning, "
+        "same placeholders, nothing added. If the answer is already in "
+        f"{target}, repeat it unchanged."
+    )
+
 
 _PLACEHOLDER = re.compile(r"\[[^\[\]]{2,60}\]")
 
@@ -106,6 +128,8 @@ class CopilotAnswer:
     input_tokens: int
     output_tokens: int
     model: str
+    # The answer in the User's own language (live-translation target), when it differs.
+    answer_translation: str | None = None
 
 
 def validate(data: dict[str, Any]) -> tuple[str, Grounding, str, list[str]]:
@@ -135,18 +159,23 @@ async def ask(
     tone: Tone,
     max_output_tokens: int,
     user_context: str | None = None,
+    translate_to: str | None = None,
 ) -> CopilotAnswer:
     q = (question or "").strip() if mode == "ask" else MODE_QUESTIONS[mode]
     if not q:
         raise ValueError("question is required")
+    extra = translation_rule(answer_language, translate_to)
     result = await provider.generate_json(
-        instructions=instructions(answer_language, tone),
+        instructions=instructions(answer_language, tone) + extra,
         input_text=build_input(q, ctx, meeting_language, user_context),
         schema_name="copilot_answer",
-        schema=SCHEMA,
+        schema=schema_for(bool(extra)),
         max_output_tokens=max_output_tokens,
     )
     answer, grounding, explanation, missing = validate(result.data)
+    translated = str(result.data.get("answer_translation") or "").strip()[:4_000] if extra else ""
+    if translated and same_text(translated, answer):
+        translated = ""
     return CopilotAnswer(
         answer=answer,
         grounding=grounding,
@@ -155,4 +184,5 @@ async def ask(
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,
         model=result.model,
+        answer_translation=translated or None,
     )

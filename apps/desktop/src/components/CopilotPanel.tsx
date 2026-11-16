@@ -41,6 +41,11 @@ export function AnswerCard({ t, item, compact }: { t: T; item: CopilotItem; comp
       {item.status === "done" && item.answer && (
         <>
           <p className="answer__text">{item.answer.answer}</p>
+          {item.answer.answer_translation && (
+            <p className="answer__tr" data-testid="answer-translation">
+              {item.answer.answer_translation}
+            </p>
+          )}
           <div className="row">
             <GroundingBadge t={t} grounding={item.answer.grounding} />
             <button

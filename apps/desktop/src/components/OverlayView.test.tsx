@@ -33,6 +33,15 @@ describe("OverlayAnswers", () => {
     expect(screen.getByText("Sou desenvolvedor Salesforce.")).toBeTruthy();
   });
 
+  it("shows the answer in the user's language under the spoken one", () => {
+    const item = done("q-9", "What is your experience with Apex?", "I've worked with Apex for four years.");
+    item.answer!.answer_translation = "Trabalho com Apex há quatro anos.";
+    render(<OverlayAnswers t={t} items={[item, done("q-8", "Hi?", "Hello.")]} />);
+    const trs = screen.getAllByTestId("answer-translation");
+    expect(trs).toHaveLength(1);
+    expect(trs[0].textContent).toBe("Trabalho com Apex há quatro anos.");
+  });
+
   it("renders nothing without suggestions", () => {
     const { container } = render(<OverlayAnswers t={t} items={[]} />);
     expect(container.innerHTML).toBe("");

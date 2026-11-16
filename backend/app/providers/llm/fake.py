@@ -57,6 +57,11 @@ class FakeLLMProvider:
                 ),
                 "explanation": "Development provider: placeholder answer, not real AI.",
                 "missing_info": [],
+                **(
+                    {"answer_translation": f"(tradução de teste) {question[:120]}"}
+                    if "answer_translation" in schema.get("properties", {})
+                    else {}
+                ),
             },
             input_tokens=max(1, (len(instructions) + len(input_text)) // 4),
             output_tokens=40,

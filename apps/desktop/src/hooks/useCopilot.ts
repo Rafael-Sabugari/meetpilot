@@ -3,6 +3,7 @@ import type { CopilotMode, CopilotTone } from "@meetpilot/shared-types";
 import { api, events, isTauri, toCommandError } from "../lib/api";
 import { contextFromTranscript, copilotReducer, emptyCopilot, manualId } from "../lib/copilot";
 import type { TranscriptState } from "../lib/transcript";
+import { loadLivePrefs } from "../lib/liveOptions";
 
 /**
  * Answers are broadcast by the app, so the main window and the overlay stay in sync. Manual
@@ -44,6 +45,7 @@ export function useCopilot() {
           tone,
           transcript: contextFromTranscript(transcript),
           userContext,
+          translateTo: loadLivePrefs().translateTo,
         });
         return null;
       } catch (e) {

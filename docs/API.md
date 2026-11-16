@@ -60,12 +60,14 @@ Request:
   "question": "string (required for ask, ≤1000)",
   "transcript": [{ "source": "system"|"microphone", "text": "≤2000", "start_ms": 0 }],  // ≤500, sent by the desktop, never stored
   "tone": "natural" | "concise" | "technical" | "formal",
-  "language": "pt-BR" | "en" | null }   // answer language; default = meeting language
+  "language": "pt-BR" | "en" | null,    // answer language; default = meeting language
+  "user_context": "≤20000 chars | null",
+  "translate_to": "pt-BR" | "en" | null } // also return the answer in this language
 ```
 Response:
 ```json
 { "answer": "…", "grounding": "from_conversation" | "general_suggestion" | "needs_confirmation",
-  "explanation": "…", "missing_info": ["…"], "provider": "openai",
+  "explanation": "…", "missing_info": ["…"], "answer_translation": "…" | null, "provider": "anthropic",
   "context": { "used_segments": 42, "total_segments": 80, "truncated": true },
   "usage": { "input_tokens": 812, "output_tokens": 96 }, "requests_remaining": 199 }
 ```
@@ -93,7 +95,7 @@ or answer text is stored or logged. Works for active and finished meetings.
    (`local_audio_seconds` usage rows are informational).
 4. Client control (text): `capture.paused`, `capture.resumed`, `capture.stopped`, and
    `{"type": "copilot.settings", "auto_suggestions": "off"|"directed"|"all", "tone": "natural"|"concise"|"technical"|"formal", "translate_to": "pt-BR"|"en"|null}`
-   plus optional `"user_context": "<≤ 4000 chars written by the user>"`
+   plus optional `"user_context": "<≤ 20000 chars written by the user>"`
    (any time; invalid values get an `error` with code `bad_settings`, the stream stays open).
    Defaults: `directed`, `natural`, no translation.
 5. Server events (envelope `{v:1, type, meeting_id, seq, ts, payload}`):
@@ -107,7 +109,9 @@ or answer text is stored or logged. Works for active and finished meetings.
      not counted in the copilot quota).
    * `answer.started` / `answer.completed` / `answer.failed` — automatic suggestion for a
      detected question, same `question_id`. `completed` carries the Ask-Copilot answer shape
-     (`answer, grounding, explanation, missing_info, provider, requests_remaining`) plus
+     (`answer, grounding, explanation, missing_info, answer_translation, provider, requests_remaining`;
+     `answer_translation` is the answer in the `translate_to` language when it differs from
+     the answer's language, else `null`) plus
      `question`. `failed`: `{question_id, question, code: "llm_error"|"copilot_quota", message, retryable}`.
      Limits: one answer in flight; questions asked meanwhile wait in a FIFO queue of 3 and are
      answered in order; ≥ 3 s apart, ≤ 10 per minute, the same question is not answered twice within 60 s, questions older than 20 s
