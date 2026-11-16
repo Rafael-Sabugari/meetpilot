@@ -124,7 +124,15 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .answer--compact { padding: 6px 8px; font-size: 13px; }
 .answer--compact .answer__text { font-size: 13px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .warn-text { color: #fcd34d; }
-.overlay__copilot { display: grid; gap: 6px; }
+.overlay__copilot { display: grid; gap: 6px; min-height: 0; }
+.overlay { display: flex; flex-direction: column; overflow: hidden; }
+.overlay > * { flex: none; }
+.overlay > .overlay__copilot { flex: 0 1 auto; display: flex; flex-direction: column; }
+.overlay__answers { display: grid; gap: 6px; align-content: start; overflow-y: auto; max-height: 100%; min-height: 0; cursor: auto; user-select: text; padding-right: 2px; }
+.overlay__answer { opacity: 0.8; }
+.overlay__answer--latest { opacity: 1; }
+.overlay__answers .answer--compact .answer__text { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.overlay__copilot > .btn { align-self: flex-start; }
 
 /* Live assistance (automatic suggestions, translation) */
 .pill--accent { background: #1e2a4a; color: #a5b4fc; }

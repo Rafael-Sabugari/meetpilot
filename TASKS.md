@@ -184,3 +184,4 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] flash attention no Metal; janela do encoder proporcional à fala (`audio_ctx`); single segment sem timestamps
 - [x] segmentador: fim de fala em 500 ms, prévias a cada 2,5 s
 - [x] seletor de modelo (Preciso / Rápido / Muito rápido), lembrado nas preferências
+- [x] overlay mantém todas as sugestões da sessão (mais nova no topo, rolável); uma pergunta nova não apaga as respostas anteriores

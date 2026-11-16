@@ -5,14 +5,15 @@ import { useTranscript } from "../hooks/useTranscript";
 import { recentLines } from "../lib/transcript";
 import { useCopilot } from "../hooks/useCopilot";
 import { AnswerCard } from "./CopilotPanel";
+import type { CopilotItem } from "../lib/copilot";
 import { loadLivePrefs } from "../lib/liveOptions";
 import { CaptureIndicator } from "./CaptureIndicator";
 import { startOverlayDrag } from "../lib/overlayDrag";
 
 /**
  * Private, always-on-top overlay: capture indicator with immediate pause/stop, the last
- * transcript lines (with translation) and the latest suggestion, including the ones made
- * automatically when someone asks the user a question.
+ * transcript lines (with translation) and every suggestion of the session (newest first,
+ * scrollable), including the ones made automatically when someone asks the user a question.
  */
 export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
   const cap = useCapture();
@@ -20,7 +21,7 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
   const state = cap.status?.state ?? "idle";
   const lines = recentLines(transcript.state, 2);
   const copilot = useCopilot();
-  const latest = copilot.state.items[0];
+  const items = copilot.state.items;
   const live = transcript.state.link?.state === "connected";
   // Read on every render: cheap, and picks up changes made in the main window.
   const prefs = loadLivePrefs();
@@ -55,7 +56,7 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
           );
         })}
       </div>
-      {(live || latest) && (
+      {(live || items.length > 0) && (
         <div className="overlay__copilot">
           {live && (
             <button
@@ -66,7 +67,7 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
               💬 {t("copilot.reply")}
             </button>
           )}
-          {latest && <AnswerCard t={t} item={latest} compact />}
+          <OverlayAnswers t={t} items={items} />
         </div>
       )}
       {lines.length > 0 && (
@@ -84,5 +85,19 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
         </div>
       )}
     </main>
+  );
+}
+
+/** All suggestions, newest on top; a new question never hides the earlier answers. */
+export function OverlayAnswers({ t, items }: { t: (k: MessageKey) => string; items: CopilotItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="overlay__answers" data-no-drag data-testid="overlay-answers">
+      {items.map((item, i) => (
+        <div key={item.id} className={i === 0 ? "overlay__answer overlay__answer--latest" : "overlay__answer"}>
+          <AnswerCard t={t} item={item} compact />
+        </div>
+      ))}
+    </div>
   );
 }
