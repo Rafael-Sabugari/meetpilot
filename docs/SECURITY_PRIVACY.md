@@ -35,7 +35,7 @@ meetings. Privacy is a product feature, built in from the first slice.
 | Passwords hashed with Argon2id; identical response for unknown user vs wrong password; login rate limited | `auth/` | `test_auth.py` |
 | Access tokens 15 min; stream tokens 2 min and bound to one meeting; access/stream tokens not interchangeable | `auth/security.py` | `test_auth.py`, `test_realtime.py` |
 | Refresh tokens opaque, stored hashed, rotated on use; reuse of a rotated token revokes all of the user's sessions | `auth/router.py` | `test_refresh_token_reuse_revokes_the_whole_family` |
-| Desktop keeps tokens in memory only; password cleared from the form after sign-in | `account.rs`, `AccountPanel.tsx` | code review |
+| Desktop: access token in memory only; server URL + rotating refresh token in the OS credential store (macOS Keychain / Windows Credential Manager), saved after every rotation, deleted on sign-out or when the server rejects it; restore holds a lock so two windows never reuse one token; password cleared from the form after sign-in | `account.rs`, `AccountPanel.tsx` | `account::tests` (unreachable server keeps session, invalid server forgotten) |
 | Tenant isolation: other users' meetings return 404 on every route and on the stream | `meetings/router.py`, `gateway.py` | `test_users_cannot_see_or_touch_each_others_meetings`, stream tests |
 | One concurrent stream per user; monthly minute quota enforced at meeting creation and mid-stream | `gateway.py`, `usage/` | `test_one_concurrent_stream_per_user`, quota tests |
 | No double billing on reconnects (seq de-dup persisted with usage) | `gateway.py` | `test_replay_protection_survives_a_server_restart`; e2e (2,196 frames captured = 2,196 billed across a server restart) |
@@ -66,7 +66,7 @@ meetings. Privacy is a product feature, built in from the first slice.
 
 ## Planned controls (tracked in TASKS.md / ROADMAP.md)
 
-* Refresh token in the OS keychain (Windows Credential Manager / macOS Keychain).
+* ~~Refresh token in the OS keychain~~ — done 2026-11-16.
 * Email verification and password reset; account lockout policy; distributed rate limiting.
 * Server-side cleanup of meetings left `active` when the client could not finish them.
 * Deepgram and OpenAI data-processing agreements, retention and region review before launch

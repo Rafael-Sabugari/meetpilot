@@ -63,6 +63,8 @@ Portuguese and English. Initial markets: Brazil and international.
 | 2026-11-15 | Recognize **every** question asked to the user: rules first, LLM check for unclear lines; questions asked while an answer is being written are queued and all answered (was: newest wins) | Owner request ("reconheça todas as perguntas que me fizer"); a real run showed a question being dropped |
 | 2026-11-15 | "Meu contexto": user-written context used by suggestions, new label "Do seu contexto"; stored only on the device | Owner request; fewer `[placeholders]` while still never inventing facts beyond what the user wrote |
 | 2026-11-15 | Desktop keeps the session in memory only | Avoids storing tokens on disk before keychain integration; costs a re-login per app start |
+| 2026-11-16 | **Superseded:** stay signed in via the OS keychain; capture options (sources, devices, transcription, language, overlay protection) remembered locally | Owner tested on his Mac and had to sign in and redo options every time |
+| 2026-11-16 | Overlay draggable from anywhere except controls, with a grip; accepts the first click while another app is active (macOS) | Owner could not move the overlay during a meeting |
 
 ## Open product questions (need the owner's decision; not blocking current work)
 

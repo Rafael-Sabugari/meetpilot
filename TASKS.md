@@ -2,6 +2,13 @@
 
 Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
 
+## ✅ Completed — First run on the owner's Mac (2026-11-16)
+
+- ✅ Installed on the owner's MacBook (arm64, macOS 26.6): one-click `Iniciar MeetPilot.command`, then LaunchAgent so the local server starts at login (`~/Library/Application Support/MeetPilot`, logs in `~/Library/Logs/MeetPilot`)
+- ✅ Fixed: overlay could not be dragged (drag region only on the exact element; first click ignored while another app is active) → JS drag from anywhere except controls + grip + `acceptFirstMouse`
+- ✅ Fixed: options and sign-in forgotten on every launch → capture prefs in localStorage (devices fall back to default when absent), session in the OS keychain
+- ⏳ Real Deepgram transcription on the Mac: pending the owner's first meeting
+
 ## ✅ Completed — Every question to you + "Meu contexto"
 
 - ✅ Two-stage detection: rules + Claude check for unclear lines (no "?", no "você", unclear target), last 8 lines + user context, ≤ 30/min, metered as `question_check`

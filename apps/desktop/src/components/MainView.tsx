@@ -10,6 +10,7 @@ import { useCopilot } from "../hooks/useCopilot";
 import { CopilotPanel } from "./CopilotPanel";
 import { LiveAssistOptions } from "./LiveAssistOptions";
 import { UserContextCard } from "./UserContextCard";
+import { availableDevice, loadCapturePrefs, saveCapturePrefs } from "../lib/capturePrefs";
 import { loadLivePrefs, saveLivePrefs, toLiveOptions, type LivePrefs } from "../lib/liveOptions";
 import { AccountPanel } from "./AccountPanel";
 import { ConsentDialog, hasTranscriptionConsent } from "./ConsentDialog";
@@ -36,8 +37,10 @@ export function MainView({ t }: { t: T }) {
   const [onboarded, setOnboarded] = useState(readOnboarded);
   const [caps, setCaps] = useState<CapabilitiesDto | null>(null);
   const [devices, setDevices] = useState<{ inputs: DeviceInfo[]; outputs: DeviceInfo[] }>({ inputs: [], outputs: [] });
-  const [useSystem, setUseSystem] = useState(true);
-  const [useMic, setUseMic] = useState(false);
+  // Remembered between launches (this computer only).
+  const [saved] = useState(loadCapturePrefs);
+  const [useSystem, setUseSystem] = useState(saved.useSystem);
+  const [useMic, setUseMic] = useState(saved.useMic);
   const [systemDevice, setSystemDevice] = useState<string>("");
   const [micDevice, setMicDevice] = useState<string>("");
   const [demo, setDemo] = useState(false);
@@ -46,10 +49,19 @@ export function MainView({ t }: { t: T }) {
   const acct = useAccount();
   const transcript = useTranscript();
   const copilot = useCopilot();
-  const [transcribe, setTranscribe] = useState(false);
-  const [language, setLanguage] = useState<Language>(() =>
-    navigator.language?.toLowerCase().startsWith("pt") ? "pt-BR" : "en",
-  );
+  const [transcribe, setTranscribe] = useState(saved.transcribe && hasTranscriptionConsent());
+  const [language, setLanguage] = useState<Language>(saved.language as Language);
+  // Apply remembered devices once the device list is known (fall back to default if absent).
+  useEffect(() => {
+    if (devices.outputs.length) setSystemDevice((d) => d || availableDevice(saved.systemDevice, devices.outputs.map((x) => x.id)));
+    if (devices.inputs.length) setMicDevice((d) => d || availableDevice(saved.micDevice, devices.inputs.map((x) => x.id)));
+  }, [devices, saved]);
+  useEffect(() => {
+    if (saved.protectOverlay) api.setOverlayProtection(true).then(setProtect).catch(() => {});
+  }, [saved]);
+  useEffect(() => {
+    saveCapturePrefs({ useSystem, useMic, systemDevice, micDevice, transcribe, language, protectOverlay: protect });
+  }, [useSystem, useMic, systemDevice, micDevice, transcribe, language, protect]);
   const [showConsent, setShowConsent] = useState(false);
   const [live, setLive] = useState<LivePrefs>(loadLivePrefs);
 

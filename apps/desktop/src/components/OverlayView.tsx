@@ -7,6 +7,7 @@ import { useCopilot } from "../hooks/useCopilot";
 import { AnswerCard } from "./CopilotPanel";
 import { loadLivePrefs } from "../lib/liveOptions";
 import { CaptureIndicator } from "./CaptureIndicator";
+import { startOverlayDrag } from "../lib/overlayDrag";
 
 /**
  * Private, always-on-top overlay: capture indicator with immediate pause/stop, the last
@@ -24,8 +25,11 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
   // Read on every render: cheap, and picks up changes made in the main window.
   const prefs = loadLivePrefs();
   return (
-    <main className="overlay" data-tauri-drag-region>
-      <div className="overlay__row" data-tauri-drag-region>
+    <main className="overlay" onMouseDown={startOverlayDrag}>
+      <div className="overlay__grip" aria-hidden="true" title={t("overlay.drag")}>
+        ⠿⠿⠿
+      </div>
+      <div className="overlay__row">
         <CaptureIndicator status={cap.status} demo={cap.demo} t={t} compact />
         <div className="overlay__actions">
           {state === "capturing" && (
@@ -39,7 +43,7 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
           )}
         </div>
       </div>
-      <div className="overlay__meters" data-tauri-drag-region>
+      <div className="overlay__meters">
         {(cap.status?.sources ?? []).map((s) => {
           const lvl = cap.levels[s.source];
           const pct = s.state === "capturing" && !isLevelStale(lvl?.at, cap.now) && lvl ? dbfsToPercent(lvl.reading.rms_dbfs) : 0;

@@ -134,3 +134,5 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .line--question { background: rgba(165, 180, 252, 0.06); border-radius: 6px; }
 .answer--auto { border-left: 3px solid #a5b4fc; }
 .ctx-input { width: 100%; resize: vertical; min-height: 90px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: inherit; font: inherit; }
+.overlay__grip { text-align: center; font-size: 10px; letter-spacing: 2px; color: var(--muted); opacity: 0.6; line-height: 1; margin: -4px 0 -2px; cursor: grab; }
+.overlay__grip:hover { opacity: 1; }

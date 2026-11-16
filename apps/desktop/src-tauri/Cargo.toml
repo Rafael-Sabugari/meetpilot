@@ -23,3 +23,13 @@ serde.workspace = true
 serde_json.workspace = true
 log.workspace = true
 env_logger = "0.11"
+
+# Remember the sign-in between launches: refresh token in the OS keychain.
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "time", "sync"] }
