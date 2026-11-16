@@ -5,10 +5,23 @@ type T = (k: MessageKey) => string;
 
 const MB = 1024 * 1024;
 
-/** The model offered for free transcription (recommended by the engine). */
-export function pickModel(models: LocalModels | null) {
-  return models?.models.find((m) => m.recommended) ?? models?.models[0] ?? null;
+/** The chosen model if it exists, else the recommended one. */
+export function pickModel(models: LocalModels | null, preferred = "") {
+  return (
+    models?.models.find((m) => m.id === preferred) ??
+    models?.models.find((m) => m.recommended) ??
+    models?.models[0] ??
+    null
+  );
 }
+
+/** Speed/accuracy label per model id (others show their id). */
+const MODEL_LABEL: Record<string, MessageKey> = {
+  "large-v3-turbo-q5_0": "stt.model.accurate",
+  small: "stt.model.fast",
+  base: "stt.model.fastest",
+};
+const MODEL_ORDER = ["large-v3-turbo-q5_0", "small", "base"];
 
 /** Choose who turns speech into text: Deepgram (cloud, paid) or Whisper on this computer. */
 export function TranscriptionEngine(props: {
@@ -16,15 +29,18 @@ export function TranscriptionEngine(props: {
   engine: SttEngine;
   onChange: (e: SttEngine) => void;
   models: LocalModels | null;
+  modelId: string;
+  onModelChange: (id: string) => void;
   progress: DownloadEvent | null;
   error: string | null;
   onDownload: (id: string) => void;
   onCancel: (id: string) => void;
   disabled: boolean;
 }) {
-  const { t, engine, onChange, models, progress, error, onDownload, onCancel, disabled } = props;
+  const { t, engine, onChange, models, modelId, onModelChange, progress, error, onDownload, onCancel, disabled } = props;
   if (!models?.available) return null;
-  const model = pickModel(models);
+  const model = pickModel(models, modelId);
+  const ordered = [...models.models].sort((a, b) => MODEL_ORDER.indexOf(a.id) - MODEL_ORDER.indexOf(b.id));
   const pct = progress?.total ? Math.round((progress.downloaded / progress.total) * 100) : null;
   return (
     <div className="engine" data-testid="stt-engine">
@@ -37,6 +53,22 @@ export function TranscriptionEngine(props: {
       </label>
       {engine === "local" && model && (
         <div className="engine__model">
+          <label className="select">
+            <span className="muted small">{t("stt.model")}</span>
+            <select
+              aria-label={t("stt.model")}
+              value={model.id}
+              disabled={disabled || !!progress}
+              onChange={(e) => onModelChange(e.target.value)}
+            >
+              {ordered.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {MODEL_LABEL[m.id] ? t(MODEL_LABEL[m.id]) : m.id} · {Math.round(m.approx_bytes / MB)} MB
+                  {m.downloaded ? " ✓" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
           {model.downloaded ? (
             <p className="muted small" data-testid="model-ready">✓ {t("stt.ready")}</p>
           ) : progress ? (

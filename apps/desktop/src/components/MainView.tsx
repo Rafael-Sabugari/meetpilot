@@ -55,8 +55,9 @@ export function MainView({ t }: { t: T }) {
   const [transcribe, setTranscribe] = useState(saved.transcribe && hasTranscriptionConsent());
   const [language, setLanguage] = useState<Language>(saved.language as Language);
   const [engine, setEngine] = useState<SttEngine>(saved.engine);
+  const [localModelId, setLocalModelId] = useState(saved.localModel);
   const localModels = useLocalModels();
-  const localModel = pickModel(localModels.data);
+  const localModel = pickModel(localModels.data, localModelId);
   // Free transcription only where this build includes Whisper (macOS); otherwise Deepgram.
   const effectiveEngine: SttEngine = engine === "local" && localModels.data?.available ? "local" : "cloud";
   const needsModel = transcribe && effectiveEngine === "local" && !localModel?.downloaded;
@@ -69,8 +70,8 @@ export function MainView({ t }: { t: T }) {
     if (saved.protectOverlay) api.setOverlayProtection(true).then(setProtect).catch(() => {});
   }, [saved]);
   useEffect(() => {
-    saveCapturePrefs({ useSystem, useMic, systemDevice, micDevice, transcribe, language, protectOverlay: protect, engine });
-  }, [useSystem, useMic, systemDevice, micDevice, transcribe, language, protect, engine]);
+    saveCapturePrefs({ useSystem, useMic, systemDevice, micDevice, transcribe, language, protectOverlay: protect, engine, localModel: localModelId });
+  }, [useSystem, useMic, systemDevice, micDevice, transcribe, language, protect, engine, localModelId]);
   const [showConsent, setShowConsent] = useState(false);
   const [live, setLive] = useState<LivePrefs>(loadLivePrefs);
 
@@ -246,6 +247,8 @@ export function MainView({ t }: { t: T }) {
                 engine={effectiveEngine}
                 onChange={setEngine}
                 models={localModels.data}
+                modelId={localModelId}
+                onModelChange={setLocalModelId}
                 progress={localModels.progress}
                 error={localModels.error}
                 onDownload={localModels.download}

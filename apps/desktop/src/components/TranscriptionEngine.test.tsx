@@ -23,6 +23,8 @@ function setup(over: Partial<Parameters<typeof TranscriptionEngine>[0]> = {}) {
       engine="local"
       onChange={(e) => calls.push(`engine:${e}`)}
       models={models(false)}
+      modelId=""
+      onModelChange={(id) => calls.push(`model:${id}`)}
       progress={null}
       error={null}
       onDownload={(id) => calls.push(`download:${id}`)}
@@ -68,8 +70,23 @@ describe("TranscriptionEngine", () => {
     expect(screen.getByTestId("model-ready").textContent).toContain("Modelo de voz pronto");
   });
 
-  it("picks the recommended model", () => {
+  it("picks the chosen model, else the recommended one", () => {
     expect(pickModel(models(false))?.id).toBe("large-v3-turbo-q5_0");
+    expect(pickModel(models(false), "base")?.id).toBe("base");
+    expect(pickModel(models(false), "gone")?.id).toBe("large-v3-turbo-q5_0");
     expect(pickModel(null)).toBeNull();
+  });
+
+  it("lets the user pick a faster model and download it", () => {
+    const calls = setup({ modelId: "base" });
+    const sel = screen.getByLabelText("Modelo de voz") as HTMLSelectElement;
+    expect([...sel.options].map((o) => o.text)).toEqual([
+      "Preciso (recomendado) · 547 MB",
+      "Muito rápido (menos preciso) · 142 MB",
+    ]);
+    expect(sel.value).toBe("base");
+    fireEvent.change(sel, { target: { value: "large-v3-turbo-q5_0" } });
+    fireEvent.click(screen.getByText(/Baixar modelo de voz \(~142 MB\)/));
+    expect(calls).toEqual(["model:large-v3-turbo-q5_0", "download:base"]);
   });
 });

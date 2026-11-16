@@ -179,3 +179,8 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - Transcripts are not persisted server-side yet; copying is the only export.
 - If transcription fails mid-meeting (e.g. session revoked), local capture continues until the user stops it; frames that cannot be sent are counted and shown.
 - Shortcuts are fixed (configurable shortcuts planned in Slice 5).
+
+## Velocidade do Whisper (2026-11-16)
+- [x] flash attention no Metal; janela do encoder proporcional à fala (`audio_ctx`); single segment sem timestamps
+- [x] segmentador: fim de fala em 500 ms, prévias a cada 2,5 s
+- [x] seletor de modelo (Preciso / Rápido / Muito rápido), lembrado nas preferências

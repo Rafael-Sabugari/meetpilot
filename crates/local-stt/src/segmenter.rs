@@ -32,9 +32,9 @@ impl Default for SegmenterConfig {
         Self {
             threshold_dbfs: -45.0,
             noise_margin_db: 10.0,
-            end_silence_ms: 700,
+            end_silence_ms: 500,
             max_utterance_ms: 15_000,
-            partial_every_ms: 1_500,
+            partial_every_ms: 2_500,
             min_speech_ms: 300,
             pre_roll_ms: 240,
         }
@@ -257,7 +257,7 @@ mod tests {
     fn speech_then_pause_gives_partials_then_one_final() {
         let mut s = Segmenter::new(SegmenterConfig::default());
         let (mut out, seq) = run(&mut s, (0..50).map(|_| silence()), 0);
-        let (o, seq) = run(&mut s, (50..250).map(|i| tone(-20.0, i)), seq); // 4 s speech
+        let (o, seq) = run(&mut s, (50..350).map(|i| tone(-20.0, i)), seq); // 6 s speech
         out.extend(o);
         let (o, _) = run(&mut s, (0..50).map(|_| silence()), seq); // 1 s silence
         out.extend(o);
@@ -275,8 +275,8 @@ mod tests {
         // Pre-roll of 240 ms = 12 frames before speech started at seq 50.
         assert_eq!(f.start_seq, 38);
         assert_eq!(f.start_ms(), 760);
-        // Final after 700 ms of trailing silence.
-        assert_eq!(f.end_seq, 250 + 35 - 1);
+        // Final after 500 ms of trailing silence.
+        assert_eq!(f.end_seq, 350 + 25 - 1);
         assert!(partials
             .windows(2)
             .all(|w| w[1].audio.len() > w[0].audio.len()));
