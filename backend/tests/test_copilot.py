@@ -409,3 +409,43 @@ def test_translation_identical_to_the_answer_is_dropped() -> None:
         )
     )
     assert res.answer_translation is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "clean"),
+    [
+        (
+            "Boa pergunta. No ciclo de save, primeiro rodam as validações. Depois os triggers.",
+            "No ciclo de save, primeiro rodam as validações. Depois os triggers.",
+        ),
+        ("Great question! I'd start with the debug logs.", "I'd start with the debug logs."),
+        ("Claro, eu usaria um campo de versão.", "Eu usaria um campo de versão."),
+        (
+            "Resolvi movendo para Batch Apex. Não tenho certeza se você quer um exemplo "
+            "específico, então posso detalhar mais esse ponto se quiser.",
+            "Resolvi movendo para Batch Apex.",
+        ),
+        (
+            "I moved it to a batch job. I can go into more detail if you'd like.",
+            "I moved it to a batch job.",
+        ),
+        # Natural answers are left alone, including a single sentence.
+        ("Posso detalhar o fluxo agora.", "Posso detalhar o fluxo agora."),
+        (
+            "A boa pergunta aqui é o volume. Eu começaria pelos logs.",
+            "A boa pergunta aqui é o volume. Eu começaria pelos logs.",
+        ),
+    ],
+)
+def test_answers_drop_rehearsed_openers_and_closers(raw: str, clean: str) -> None:
+    from app.ai.copilot import naturalize
+
+    assert naturalize(raw) == clean
+
+
+def test_prompt_asks_for_unrehearsed_speech() -> None:
+    from app.ai.copilot import instructions
+
+    text = instructions("pt-BR", "natural")
+    assert "Boa pergunta" in text and "never open by praising" in text
+    assert "never close by offering more" in text

@@ -186,3 +186,4 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] seletor de modelo (Preciso / Rápido / Muito rápido), lembrado nas preferências
 - [x] overlay mantém todas as sugestões da sessão (mais nova no topo, rolável); uma pergunta nova não apaga as respostas anteriores
 - [x] sugestões também traduzidas para o idioma do usuário (`answer_translation`, mesma chamada ao Claude; só quando "Traduzir transcrição para" difere do idioma da resposta)
+- [x] respostas naturais: sem "Boa pergunta"/"Claro!" no início, sem "posso detalhar se quiser"/"não tenho certeza se você quer" no fim, sem resumo repetido (regra no prompt + filtro `naturalize`); ruído de transcrição ininteligível não conta como pergunta

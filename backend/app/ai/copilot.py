@@ -78,6 +78,36 @@ def translation_rule(answer_language: str, translate_to: str | None) -> str:
 
 _PLACEHOLDER = re.compile(r"\[[^\[\]]{2,60}\]")
 
+# Safety net for rule 2: canned openers and closers that make an answer sound rehearsed.
+_OPENER = re.compile(
+    r"^(?:(?:muito\s+)?(?:boa|ótima|excelente|interessante)\s+pergunta"
+    r"|(?:that's\s+a\s+|what\s+a\s+)?(?:good|great|excellent|interesting)\s+question"
+    r"|claro|com\s+certeza|certamente|sure\s+thing|absolutely)\s*[.!,:;\u2014\u2013-]+\s*",
+    re.IGNORECASE,
+)
+_CLOSER = re.compile(
+    r"(?:posso\s+(?:detalhar|aprofundar|explicar\s+melhor|dar\s+mais\s+detalhes|dar\s+um\s+exemplo)"
+    r"|não\s+tenho\s+certeza\s+se\s+(?:você|vc)\s+quer"
+    r"|se\s+(?:você\s+)?quiser,?\s+(?:eu\s+)?(?:posso|detalho|explico|aprofundo)"
+    r"|(?:i\s+can|i'd\s+be\s+happy\s+to|happy\s+to)\s+(?:go\s+into|elaborate|give\s+more|share\s+more|expand)"
+    r"|(?:does\s+that|did\s+that)\s+answer"
+    r"|faz\s+sentido\s*\?\s*$)",
+    re.IGNORECASE,
+)
+_SENTENCE = re.compile(r"(?<=[.!?])\s+")
+
+
+def naturalize(answer: str) -> str:
+    """Drop a praising opener and trailing 'want more?' sentences; keep the substance."""
+    text = answer.strip()
+    stripped = _OPENER.sub("", text, count=1)
+    if stripped and stripped != text:
+        text = stripped[0].upper() + stripped[1:]
+    sentences = _SENTENCE.split(text)
+    while len(sentences) > 1 and _CLOSER.search(sentences[-1]):
+        sentences.pop()
+    return " ".join(sentences).strip()
+
 
 def instructions(language: str, tone: Tone) -> str:
     lang = LANGUAGE_NAMES.get(language, "the same language as the user's request")
@@ -88,7 +118,7 @@ The transcript is labelled "User" (the User's microphone) and "Others" (everyone
 
 Rules:
 1. Write everything (answer, placeholders, explanation, missing_info) in {lang}. Keep technical terms and product names as spoken. In every field, address the User as "you" and refer to Others as the other participants (in {lang}); never write the labels "User" or "Others".
-2. The answer is the exact words the User can say aloud right now: first person, natural spoken sentences, no headings, no bullet points, no meta comments ("you could say…"). By default 2-4 sentences; when asked to describe an experience or project, up to 6 sentences (situation, what the User did, result). Tone: {TONES[tone]}.
+2. The answer is the exact words the User can say aloud right now: first person, natural spoken sentences, no headings, no bullet points, no meta comments ("you could say…"). It must sound like a real person talking, not rehearsed or written: go straight to the substance in the first words; never open by praising or acknowledging the question ("Good question", "Great question", "Boa pergunta", "Ótima pergunta", "Claro!", "Com certeza!"); never close by offering more or checking what they want ("I can go into more detail if you want", "posso detalhar mais se quiser", "não tenho certeza se você quer um exemplo específico", "does that answer your question?"); no summary sentence repeating what was just said ("Então, em resumo…"). Use everyday spoken phrasing and simple connectors (like "então", "aí", "basicamente", "so", "basically") sparingly and only where a person would. By default 2-4 sentences; when asked to describe an experience or project, up to 6 sentences (situation, what the User did, result). Tone: {TONES[tone]}.
 3. Never invent facts about the User: experience, credentials, employer, projects, numbers, dates, prices or commitments. Facts written by the User in <user_context> (about themselves and this meeting) are true and should be used, but nothing beyond them. When the answer needs such facts and they are neither in the transcript nor in <user_context>, first prefer an answer that is still true and useful without those facts (how the User approaches it, what they would check, a question back). Only when a specific fact is essential, use at most 2 short placeholders in square brackets, written in {lang} (for example "{placeholder}"), set grounding to "needs_confirmation" and list what is missing in missing_info. Never fill a sentence with several placeholders.
 4. Never attribute to participants anything they did not say in the transcript.
 5. grounding: "from_user_context" when the answer relies mainly on facts from <user_context>; "from_conversation" when it relies on what was said in the transcript; "general_suggestion" for general knowledge or advice not specific to this meeting; "needs_confirmation" when it includes placeholders, assumptions or uncertain facts the User must check.
@@ -133,7 +163,7 @@ class CopilotAnswer:
 
 
 def validate(data: dict[str, Any]) -> tuple[str, Grounding, str, list[str]]:
-    answer = str(data.get("answer") or "").strip()
+    answer = naturalize(str(data.get("answer") or ""))
     if not answer:
         raise LLMError("the AI returned an empty answer", retryable=True)
     raw_grounding = data.get("grounding")
@@ -173,7 +203,9 @@ async def ask(
         max_output_tokens=max_output_tokens,
     )
     answer, grounding, explanation, missing = validate(result.data)
-    translated = str(result.data.get("answer_translation") or "").strip()[:4_000] if extra else ""
+    translated = (
+        naturalize(str(result.data.get("answer_translation") or ""))[:4_000] if extra else ""
+    )
     if translated and same_text(translated, answer):
         translated = ""
     return CopilotAnswer(
