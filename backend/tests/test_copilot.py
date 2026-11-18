@@ -489,3 +489,12 @@ def test_manual_answers_join_the_meeting_history(
     )
     sent = llm.calls[-1]["input_text"]
     assert "<earlier_suggestions>" in sent and "Q: Me fala do projeto Itaú" in sent
+
+
+def test_prompt_sizes_answers_to_the_question() -> None:
+    from app.ai.copilot import instructions
+
+    rules = instructions("pt-BR", "natural")
+    assert "Size the answer to what the question needs" in rules
+    assert "5-12 sentences" in rules and "answer every part" in rules
+    assert "explica melhor" in rules

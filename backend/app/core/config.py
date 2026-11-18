@@ -52,7 +52,8 @@ class Settings(BaseSettings):
     copilot_requests_per_minute: int = 20
     # Whole conversation for most meetings (~1 h); the oldest lines drop first beyond it.
     copilot_max_context_chars: int = 60_000
-    copilot_max_output_tokens: int = 1_200
+    # Room for a long spoken answer plus its translation.
+    copilot_max_output_tokens: int = 2_000
     # Automatic suggestions: minimum seconds between two auto answers and cap per minute.
     copilot_auto_min_interval_seconds: float = 3.0
     copilot_auto_max_per_minute: int = 10

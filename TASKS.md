@@ -192,3 +192,4 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] conversa inteira para o Claude: transcrição até 60k caracteres (~1 h) e histórico das últimas 12 perguntas/sugestões da reunião (`<earlier_suggestions>`, só em memória) para perguntas que dependem de outras
 - [x] perguntas sobre experiência: caso real do contexto (projeto, empresa, o que fez, como e por quê), 3–5 frases, sem inventar fatos
 - [x] cache de prompt no Anthropic (instruções + "Meu contexto"), para o contexto maior não encarecer cada sugestão
+- [x] tamanho da resposta conforme a pergunta: 1–2 frases (confirmação), 2–4 (normal), 5–12 (como funciona, arquitetura, cenário/troubleshooting, comparação, perguntas com várias partes, "explica melhor"); sempre falado, com transições; saída máx. 2000 tokens
