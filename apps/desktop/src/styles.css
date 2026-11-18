@@ -148,3 +148,7 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .engine { display: grid; gap: 6px; margin: 6px 0; }
 .engine__model { display: grid; gap: 4px; }
 .engine__bar { flex: 1 1 auto; min-width: 120px; }
+
+.overlay__ask { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.overlay__tone { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-left: auto; }
+.overlay__tone select { font-size: 12px; padding: 2px 6px; }

@@ -74,6 +74,12 @@ export function MainView({ t }: { t: T }) {
   }, [useSystem, useMic, systemDevice, micDevice, transcribe, language, protect, engine, localModelId]);
   const [showConsent, setShowConsent] = useState(false);
   const [live, setLive] = useState<LivePrefs>(loadLivePrefs);
+  // Pick up changes made in the overlay window (e.g. the tone).
+  useEffect(() => {
+    const onStorage = () => setLive(loadLivePrefs());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const nativeAvailable = !!caps?.capabilities;
 

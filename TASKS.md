@@ -188,3 +188,4 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] sugestões também traduzidas para o idioma do usuário (`answer_translation`, mesma chamada ao Claude; só quando "Traduzir transcrição para" difere do idioma da resposta)
 - [x] respostas naturais: sem "Boa pergunta"/"Claro!" no início, sem "posso detalhar se quiser"/"não tenho certeza se você quer" no fim, sem resumo repetido (regra no prompt + filtro `naturalize`); ruído de transcrição ininteligível não conta como pergunta
 - [x] tradução da sugestão nos dois sentidos: resposta em português vem com versão em inglês; em inglês, com versão em português (desligada só com "Não traduzir")
+- [x] seletor de tom (Natural/Direto/Técnico/Formal) no overlay; vale para as próximas sugestões e é aplicado na hora durante a reunião; a janela principal acompanha a mudança

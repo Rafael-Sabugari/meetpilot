@@ -6,7 +6,10 @@ import { recentLines } from "../lib/transcript";
 import { useCopilot } from "../hooks/useCopilot";
 import { AnswerCard } from "./CopilotPanel";
 import type { CopilotItem } from "../lib/copilot";
-import { loadLivePrefs } from "../lib/liveOptions";
+import { useState } from "react";
+import type { CopilotTone } from "@meetpilot/shared-types";
+import { api } from "../lib/api";
+import { loadLivePrefs, saveLivePrefs, toLiveOptions } from "../lib/liveOptions";
 import { CaptureIndicator } from "./CaptureIndicator";
 import { startOverlayDrag } from "../lib/overlayDrag";
 
@@ -24,7 +27,16 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
   const items = copilot.state.items;
   const live = transcript.state.link?.state === "connected";
   // Read on every render: cheap, and picks up changes made in the main window.
+  const [, rerender] = useState(0);
   const prefs = loadLivePrefs();
+  const transcribing = !!(cap.status as { transcribing?: boolean } | null)?.transcribing;
+  const setTone = (tone: CopilotTone) => {
+    const next = { ...loadLivePrefs(), tone };
+    saveLivePrefs(next);
+    rerender((n) => n + 1);
+    // Applies to the next suggestions; answers already given stay as they are.
+    if (transcribing) api.setLiveOptions(toLiveOptions(next)).catch(() => {});
+  };
   return (
     <main className="overlay" onMouseDown={startOverlayDrag}>
       <div className="overlay__grip" aria-hidden="true" title={t("overlay.drag")}>
@@ -58,15 +70,18 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
       </div>
       {(live || items.length > 0) && (
         <div className="overlay__copilot">
-          {live && (
-            <button
-              className="btn btn--small"
-              disabled={copilot.pending}
-              onClick={() => copilot.ask("reply", null, prefs.tone, transcript.state, prefs.userContext)}
-            >
-              💬 {t("copilot.reply")}
-            </button>
-          )}
+          <div className="overlay__ask">
+            {live && (
+              <button
+                className="btn btn--small"
+                disabled={copilot.pending}
+                onClick={() => copilot.ask("reply", null, prefs.tone, transcript.state, prefs.userContext)}
+              >
+                💬 {t("copilot.reply")}
+              </button>
+            )}
+            <OverlayTone t={t} tone={prefs.tone} onChange={setTone} />
+          </div>
           <OverlayAnswers t={t} items={items} />
         </div>
       )}
@@ -99,5 +114,28 @@ export function OverlayAnswers({ t, items }: { t: (k: MessageKey) => string; ite
         </div>
       ))}
     </div>
+  );
+}
+
+const TONES: CopilotTone[] = ["natural", "concise", "technical", "formal"];
+
+/** How the next suggestions should sound; earlier answers are not changed. */
+export function OverlayTone(props: {
+  t: (k: MessageKey) => string;
+  tone: CopilotTone;
+  onChange: (tone: CopilotTone) => void;
+}) {
+  const { t, tone, onChange } = props;
+  return (
+    <label className="overlay__tone" title={t("overlay.toneHint")}>
+      <span>{t("copilot.tone")}</span>
+      <select aria-label={t("copilot.tone")} value={tone} onChange={(e) => onChange(e.target.value as CopilotTone)}>
+        {TONES.map((x) => (
+          <option key={x} value={x}>
+            {t(`copilot.tone.${x}` as MessageKey)}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

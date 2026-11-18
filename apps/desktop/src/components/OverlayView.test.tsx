@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { OverlayAnswers } from "./OverlayView";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { OverlayAnswers, OverlayTone } from "./OverlayView";
 import type { CopilotItem } from "../lib/copilot";
 import { makeT } from "../lib/i18n";
 
@@ -45,5 +45,17 @@ describe("OverlayAnswers", () => {
   it("renders nothing without suggestions", () => {
     const { container } = render(<OverlayAnswers t={t} items={[]} />);
     expect(container.innerHTML).toBe("");
+  });
+});
+
+describe("OverlayTone", () => {
+  it("lets the user pick how the next answers should sound", () => {
+    const picked: string[] = [];
+    render(<OverlayTone t={t} tone="natural" onChange={(x) => picked.push(x)} />);
+    const sel = screen.getByLabelText("Tom") as HTMLSelectElement;
+    expect([...sel.options].map((o) => o.text)).toEqual(["Natural", "Direto", "Técnico", "Formal"]);
+    expect(sel.value).toBe("natural");
+    fireEvent.change(sel, { target: { value: "concise" } });
+    expect(picked).toEqual(["concise"]);
   });
 });
