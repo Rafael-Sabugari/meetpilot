@@ -298,3 +298,14 @@ def test_auto_answers_also_come_in_the_users_language(tmp_path: Path) -> None:
 
         events = run_meeting(c, auth, settings={"auto_suggestions": "all", "translate_to": None})
         assert all(a["answer_translation"] is None for a in of(events, "answer.completed"))
+
+
+def test_later_auto_answers_see_the_earlier_suggestions(tmp_path: Path) -> None:
+    llm = FakeLLMProvider()
+    with make_client(tmp_path, llm) as c:
+        auth = register_and_login(c)
+        events = run_meeting(c, auth, settings={"auto_suggestions": "all"})
+        assert len(of(events, "answer.completed")) >= 2
+        answers = [x for x in llm.calls if x["schema_name"] == "copilot_answer"]
+        assert "<earlier_suggestions>" not in answers[0]["input_text"]
+        assert "<earlier_suggestions>" in answers[-1]["input_text"]

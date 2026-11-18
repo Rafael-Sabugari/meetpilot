@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.ai.context import ContextSegment
+from app.ai.copilot import MAX_EARLIER
 from app.ai.questions import AutoAnswerPolicy
 from app.auth.security import TokenError, TokenService
 from app.core.config import Settings
@@ -99,9 +100,18 @@ class ActiveStreams:
         self.local_final_end: dict[tuple[str, AudioSource], int] = {}
         # Rolling transcript per meeting for live assistance (memory only, never stored).
         self.contexts: dict[str, deque[ContextSegment]] = {}
+        # Question/suggestion pairs per meeting, so follow-ups stay consistent (memory only).
+        self.suggestions: dict[str, deque[tuple[str, str]]] = {}
 
     def context_for(self, meeting_id: str) -> "deque[ContextSegment]":
-        return self.contexts.setdefault(meeting_id, deque(maxlen=400))
+        return self.contexts.setdefault(meeting_id, deque(maxlen=1000))
+
+    def history_for(self, meeting_id: str) -> "deque[tuple[str, str]]":
+        return self.suggestions.setdefault(meeting_id, deque(maxlen=MAX_EARLIER))
+
+    def forget(self, meeting_id: str) -> None:
+        self.contexts.pop(meeting_id, None)
+        self.suggestions.pop(meeting_id, None)
 
     def acquire(self, user_id: str, limit: int) -> bool:
         if self._counts.get(user_id, 0) >= limit:
@@ -503,6 +513,7 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
             llm=llm,
             meeting_language=meeting.language,
             context=active.context_for(meeting.id),
+            history=active.history_for(meeting.id),
             copilot_remaining=settings.copilot_requests_per_month - int(copilot_used),
             max_context_chars=settings.copilot_max_context_chars,
             max_output_tokens=settings.copilot_max_output_tokens,

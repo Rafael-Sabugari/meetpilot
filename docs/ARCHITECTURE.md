@@ -275,3 +275,10 @@ gateway, `providers/{stt,llm,embeddings}`, `ai/{context,question_detection,respo
 | OpenAI GPT-5 mini via the Responses API for the copilot (configurable model) | Low cost (US$0.25 / 2.00 per M tokens, Sept 2026), structured outputs, `store: false`; swappable behind `LLMProvider` |
 | Copilot context sent by the client, not kept server-side | Privacy (nothing stored), stateless server, robust to restarts |
 | In-process rate limiter, concurrency and seq cache | Single instance for now; move to Redis when running several replicas (dedup is already DB-backed) |
+
+
+### Conversation memory for suggestions (2026-11-18)
+Every suggestion (automatic or "Como respondo?") sees the whole meeting transcript up to
+`copilot_max_context_chars` (60k chars, about one hour; oldest lines drop first) plus the last 12
+question/suggestion pairs of the meeting (`ActiveStreams.suggestions`, memory only, cleared when the
+meeting ends). Anthropic prompt caching marks the instructions and the user's context as cacheable.

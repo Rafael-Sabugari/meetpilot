@@ -27,11 +27,23 @@ def build_payload(
     schema: dict[str, Any],
     max_output_tokens: int,
 ) -> dict[str, Any]:
+    # Prompt caching: the instructions and the User's own context (sent first, stable for a
+    # whole meeting) are cached, so repeated suggestions only pay full price for the rest.
+    content: list[dict[str, Any]] = []
+    marker = "</user_context>\n"
+    if input_text.startswith("<user_context>") and marker in input_text:
+        head, tail = input_text.split(marker, 1)
+        content.append(
+            {"type": "text", "text": head + marker, "cache_control": {"type": "ephemeral"}}
+        )
+        content.append({"type": "text", "text": tail})
+    else:
+        content.append({"type": "text", "text": input_text})
     return {
         "model": model,
         "max_tokens": max_output_tokens,
-        "system": instructions,
-        "messages": [{"role": "user", "content": input_text}],
+        "system": [{"type": "text", "text": instructions, "cache_control": {"type": "ephemeral"}}],
+        "messages": [{"role": "user", "content": content}],
         "tools": [
             {
                 "name": schema_name,

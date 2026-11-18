@@ -68,8 +68,9 @@ def test_request_shape_forces_the_schema_tool_and_parses_usage() -> None:
     b = seen["body"]
     assert b["model"] == "claude-haiku-5-5"
     assert b["max_tokens"] == 500
-    assert b["system"] == "RULES"
-    assert b["messages"] == [{"role": "user", "content": "TRANSCRIPT"}]
+    eph = {"type": "ephemeral"}
+    assert b["system"] == [{"type": "text", "text": "RULES", "cache_control": eph}]
+    assert b["messages"] == [{"role": "user", "content": [{"type": "text", "text": "TRANSCRIPT"}]}]
     assert b["tools"][0]["name"] == "copilot_answer"
     assert b["tools"][0]["input_schema"] == SCHEMA
     assert b["tool_choice"] == {"type": "tool", "name": "copilot_answer"}
@@ -125,3 +126,24 @@ def test_factory_defaults_to_the_cheapest_claude_model() -> None:
     assert s.anthropic_model == "claude-haiku-5-5"
     with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
         make_llm_provider(Settings(env="test", jwt_secret="k" * 40, llm_provider="anthropic"))
+
+
+def test_the_users_own_context_is_cached_separately_from_the_transcript() -> None:
+    from app.providers.llm.anthropic import build_payload
+
+    text = "<user_context>\nSou dev Salesforce.\n</user_context>\n<transcript>\nOi\n</transcript>"
+    b = build_payload(
+        model="m",
+        instructions="R",
+        input_text=text,
+        schema_name="s",
+        schema={"type": "object"},
+        max_output_tokens=10,
+    )
+    blocks = b["messages"][0]["content"]
+    assert blocks[0] == {
+        "type": "text",
+        "text": "<user_context>\nSou dev Salesforce.\n</user_context>\n",
+        "cache_control": {"type": "ephemeral"},
+    }
+    assert blocks[1] == {"type": "text", "text": "<transcript>\nOi\n</transcript>"}

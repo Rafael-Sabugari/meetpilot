@@ -189,3 +189,6 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] respostas naturais: sem "Boa pergunta"/"Claro!" no início, sem "posso detalhar se quiser"/"não tenho certeza se você quer" no fim, sem resumo repetido (regra no prompt + filtro `naturalize`); ruído de transcrição ininteligível não conta como pergunta
 - [x] tradução da sugestão nos dois sentidos: resposta em português vem com versão em inglês; em inglês, com versão em português (desligada só com "Não traduzir")
 - [x] seletor de tom (Natural/Direto/Técnico/Formal) no overlay; vale para as próximas sugestões e é aplicado na hora durante a reunião; a janela principal acompanha a mudança
+- [x] conversa inteira para o Claude: transcrição até 60k caracteres (~1 h) e histórico das últimas 12 perguntas/sugestões da reunião (`<earlier_suggestions>`, só em memória) para perguntas que dependem de outras
+- [x] perguntas sobre experiência: caso real do contexto (projeto, empresa, o que fez, como e por quê), 3–5 frases, sem inventar fatos
+- [x] cache de prompt no Anthropic (instruções + "Meu contexto"), para o contexto maior não encarecer cada sugestão

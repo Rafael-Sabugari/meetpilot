@@ -72,6 +72,7 @@ class LiveAssist:
         meeting_language: str,
         context: deque[ContextSegment],
         copilot_remaining: int,
+        history: deque[tuple[str, str]] | None = None,
         max_context_chars: int,
         max_output_tokens: int,
         policy: AutoAnswerPolicy | None = None,
@@ -83,6 +84,7 @@ class LiveAssist:
         self.llm = llm
         self.meeting_language = meeting_language
         self.context = context
+        self.history: deque[tuple[str, str]] = history if history is not None else deque(maxlen=12)
         self.copilot_remaining = copilot_remaining
         self.max_context_chars = max_context_chars
         self.max_output_tokens = max_output_tokens
@@ -273,6 +275,7 @@ class LiveAssist:
                     max_output_tokens=self.max_output_tokens,
                     user_context=self.settings.user_context,
                     translate_to=self.settings.translate_to,
+                    earlier=list(self.history),
                 )
             except LLMError as e:
                 self.copilot_remaining += 1  # failed calls are not billed
@@ -291,6 +294,7 @@ class LiveAssist:
                 LLMResult({}, result.input_tokens, result.output_tokens, result.model),
                 "copilot_request",
             )
+            self.history.append((question, result.answer))
             await self.emit(
                 EventType.ANSWER_COMPLETED,
                 {

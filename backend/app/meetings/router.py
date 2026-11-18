@@ -128,14 +128,14 @@ async def finish_meeting(
         m.ended_at = utcnow()
         await db.commit()
     # Forget the live-assistance context held in memory for this meeting.
-    request.app.state.active_streams.contexts.pop(m.id, None)
+    request.app.state.active_streams.forget(m.id)
     return _out(m)
 
 
 @router.delete("/meetings/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_meeting(meeting_id: str, request: Request, user: CurrentUser, db: DB) -> Response:
     m = await owned_meeting(db, meeting_id, user)
-    request.app.state.active_streams.contexts.pop(m.id, None)
+    request.app.state.active_streams.forget(m.id)
     await db.delete(m)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

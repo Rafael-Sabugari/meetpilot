@@ -50,7 +50,8 @@ class Settings(BaseSettings):
     openai_timeout_seconds: float = 30.0
     copilot_requests_per_month: int = 200
     copilot_requests_per_minute: int = 20
-    copilot_max_context_chars: int = 12_000
+    # Whole conversation for most meetings (~1 h); the oldest lines drop first beyond it.
+    copilot_max_context_chars: int = 60_000
     copilot_max_output_tokens: int = 1_200
     # Automatic suggestions: minimum seconds between two auto answers and cap per minute.
     copilot_auto_min_interval_seconds: float = 3.0

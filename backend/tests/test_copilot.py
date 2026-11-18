@@ -447,3 +447,45 @@ def test_prompt_asks_for_unrehearsed_speech() -> None:
     text = instructions("pt-BR", "natural")
     assert "Boa pergunta" in text and "never open by praising" in text
     assert "never close by offering more" in text
+
+
+def test_follow_ups_see_earlier_suggestions_and_experience_rule() -> None:
+    from app.ai.copilot import build_input, instructions
+
+    text = build_input(
+        "E nesse projeto, qual foi o maior desafio?",
+        build_context([], 1000),
+        "pt-BR",
+        "Sou dev Salesforce.",
+        [("Me fala do Itaú", "No Itaú eu fiz os fluxos de boletagem com Flow e LWC.")],
+    )
+    assert "<earlier_suggestions>" in text
+    assert "Q: Me fala do Itaú" in text and "boletagem" in text
+    assert (
+        text.index("</transcript>") < text.index("<earlier_suggestions>") < text.index("<question>")
+    )
+    rules = instructions("pt-BR", "natural")
+    assert "Follow the whole conversation" in rules
+    assert "never invent incidents" in rules
+    assert "<earlier_suggestions>" not in build_input("q", build_context([], 10), "en")
+
+
+def test_manual_answers_join_the_meeting_history(
+    app_client: TestClient, llm: FakeLLMProvider
+) -> None:
+    auth = register_and_login(app_client)
+    mid = app_client.post("/api/v1/meetings", json={"language": "pt-BR"}, headers=auth).json()[
+        "meeting"
+    ]["id"]
+    body = {"question": "Me fala do projeto Itaú", "transcript": TRANSCRIPT}
+    assert (
+        app_client.post(f"/api/v1/meetings/{mid}/copilot", json=body, headers=auth).status_code
+        == 200
+    )
+    body = {"question": "E qual foi o maior desafio nele?", "transcript": TRANSCRIPT}
+    assert (
+        app_client.post(f"/api/v1/meetings/{mid}/copilot", json=body, headers=auth).status_code
+        == 200
+    )
+    sent = llm.calls[-1]["input_text"]
+    assert "<earlier_suggestions>" in sent and "Q: Me fala do projeto Itaú" in sent

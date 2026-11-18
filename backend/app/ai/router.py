@@ -81,6 +81,7 @@ async def copilot(
         raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, "monthly copilot requests exhausted")
 
     ctx = build_context(body.transcript, settings.copilot_max_context_chars)
+    history = request.app.state.active_streams.history_for(meeting.id)
     answer_language = body.language or (
         meeting.language if meeting.language in ("pt-BR", "en") else "auto"
     )
@@ -96,11 +97,16 @@ async def copilot(
             max_output_tokens=settings.copilot_max_output_tokens,
             user_context=body.user_context,
             translate_to=body.translate_to,
+            earlier=list(history),
         )
     except LLMError as e:
         code = status.HTTP_503_SERVICE_UNAVAILABLE if e.retryable else status.HTTP_502_BAD_GATEWAY
         raise HTTPException(code, str(e)) from None
 
+    if body.mode == "ask" and body.question:
+        history.append((body.question, result.answer))
+    elif body.mode == "reply":
+        history.append(("(how to reply to the latest question)", result.answer))
     # Metering only (no prompt or answer content is stored).
     for kind, qty in (
         ("copilot_request", 1),
