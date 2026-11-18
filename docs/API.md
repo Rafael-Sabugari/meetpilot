@@ -62,7 +62,7 @@ Request:
   "tone": "natural" | "concise" | "technical" | "formal",
   "language": "pt-BR" | "en" | null,    // answer language; default = meeting language
   "user_context": "≤20000 chars | null",
-  "translate_to": "pt-BR" | "en" | null } // also return the answer in this language
+  "translate_to": "pt-BR" | "en" | null } // non-null: also return the answer in the other language (pt-BR <-> en)
 ```
 Response:
 ```json

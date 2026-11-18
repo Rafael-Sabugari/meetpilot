@@ -351,27 +351,25 @@ def test_openai_timeout_is_retryable() -> None:
     assert e.value.retryable
 
 
-def test_answer_translation_is_requested_only_when_languages_differ(
-    app_client: TestClient, llm: FakeLLMProvider
-) -> None:
+def test_answers_come_with_the_other_language(app_client: TestClient, llm: FakeLLMProvider) -> None:
     auth = register_and_login(app_client)
-    r = app_client.post("/api/v1/meetings", json={"language": "en"}, headers=auth)
-    mid = r.json()["meeting"]["id"]
-    body = {"question": "How do I answer?", "transcript": TRANSCRIPT, "translate_to": "pt-BR"}
-    r = app_client.post(f"/api/v1/meetings/{mid}/copilot", json=body, headers=auth)
-    assert r.status_code == 200, r.text
-    assert r.json()["answer_translation"].startswith("(tradução de teste)")
-    assert "answer_translation" in llm.calls[-1]["instructions"]
-    assert "Brazilian Portuguese" in llm.calls[-1]["instructions"]
-
-    # Same language (or no target): no extra field, no extra instruction.
-    for target in ("en", None):
-        r = app_client.post(
-            f"/api/v1/meetings/{mid}/copilot", json={**body, "translate_to": target}, headers=auth
-        )
+    cases = [("en", "Brazilian Portuguese"), ("pt-BR", "into English")]
+    for meeting_language, expected in cases:
+        r = app_client.post("/api/v1/meetings", json={"language": meeting_language}, headers=auth)
+        mid = r.json()["meeting"]["id"]
+        body = {"question": "How do I answer?", "transcript": TRANSCRIPT, "translate_to": "pt-BR"}
+        r = app_client.post(f"/api/v1/meetings/{mid}/copilot", json=body, headers=auth)
         assert r.status_code == 200, r.text
-        assert r.json()["answer_translation"] is None
-        assert "answer_translation" not in llm.calls[-1]["instructions"]
+        assert r.json()["answer_translation"].startswith("(tradução de teste)")
+        assert expected in llm.calls[-1]["instructions"]
+
+    # Translation turned off: no extra field, no extra instruction.
+    r = app_client.post(
+        f"/api/v1/meetings/{mid}/copilot", json={**body, "translate_to": None}, headers=auth
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["answer_translation"] is None
+    assert "answer_translation" not in llm.calls[-1]["instructions"]
 
 
 def test_translation_identical_to_the_answer_is_dropped() -> None:

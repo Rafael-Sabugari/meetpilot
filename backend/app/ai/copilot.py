@@ -64,15 +64,24 @@ def schema_for(with_translation: bool) -> dict[str, Any]:
 
 
 def translation_rule(answer_language: str, translate_to: str | None) -> str:
-    """Extra rule asking for the answer in the User's own language, when it differs."""
-    if not translate_to or translate_to == answer_language:
+    """Extra rule asking for the answer in the other language (pt-BR <-> en).
+
+    Answers in Portuguese come with an English version and answers in English with a
+    Portuguese one, so the User can understand or say either. Off when the User turned
+    translation off (``translate_to`` is None).
+    """
+    if not translate_to:
         return ""
-    target = LANGUAGE_NAMES.get(translate_to, translate_to)
+    if answer_language == "pt-BR":
+        target = LANGUAGE_NAMES["en"]
+    elif answer_language == "en":
+        target = LANGUAGE_NAMES["pt-BR"]
+    else:
+        target = "English if the answer is in Portuguese, otherwise Brazilian Portuguese"
     return (
         "\n10. answer_translation: the same answer translated faithfully into "
-        f"{target}, so the User understands exactly what they will say. Same meaning, "
-        "same placeholders, nothing added. If the answer is already in "
-        f"{target}, repeat it unchanged."
+        f"{target}, as natural spoken words the User could also say. Same meaning, "
+        "same placeholders, nothing added."
     )
 
 
