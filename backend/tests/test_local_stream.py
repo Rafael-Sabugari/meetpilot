@@ -178,3 +178,22 @@ def test_cloud_meetings_still_need_minutes(tmp_path: Path) -> None:
         assert r.status_code == 402
         r = c.post("/api/v1/meetings", json={"language": "pt-BR", "stt": "local"}, headers=auth)
         assert r.status_code == 201
+
+
+def test_whisper_garbage_is_not_shown_or_sent_to_the_ai(tmp_path: Path) -> None:
+    c, llm = make_client(tmp_path)
+    with c:
+        auth = register_and_login(c)
+        _, events = run(
+            c,
+            auth,
+            [
+                segment("s, the.s, the.s, the.s, the.s, the.s, the.s, the.s", 0, final=False),
+                segment("s, the.s, the.s, the.s, the.s, the.s, the.s, the.s, the.s", 0),
+                segment("W-icкм. all gone Currys dob. sheesh serso. keuf. zij. ogo. Ro.", 4000),
+                segment("Okay. That was clear.", 8000),
+            ],
+        )
+        assert of(events, "transcript.partial") == []
+        assert [f["text"] for f in of(events, "transcript.final")] == ["Okay. That was clear."]
+        assert all("the.s" not in call["input_text"] for call in llm.calls)

@@ -201,3 +201,4 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] perguntas de caso ("incidente em produção", "prazo apertado", "conflito"…) sempre usam a história do contexto mais próxima, mesmo com outro rótulo; abordagem genérica só quando nenhuma história se relaciona
 - [x] limite do "Meu contexto" 20k → 60k caracteres (app, servidor e docs); repositório público → CI sem limite de minutos
 - [x] respostas mais rápidas: streaming da sugestão (`answer.delta`, fine-grained tool streaming) — texto aparece ~2,5 s; tradução da sugestão em chamada separada no Haiku depois (`answer.translated`) em vez de dobrar a saída do Sonnet (≈9 s → ≈5 s para a resposta completa)
+- [x] filtro de lixo do Whisper no servidor (`app/realtime/noise.py`): token repetido em loop, palavras com dois alfabetos, sequência de fragmentos de 1 palavra, só símbolos — não aparece nem vai para o Claude

@@ -43,6 +43,7 @@ from app.realtime.events import (
     EventType,
     TranscriptSegment,
 )
+from app.realtime.noise import is_noise
 from app.usage.service import count_this_period, summary
 
 log = logging.getLogger("meetpilot.realtime")
@@ -320,6 +321,8 @@ class StreamSession:
         text = seg.text.strip()
         if not text or seg.end_ms < seg.start_ms:
             return
+        if is_noise(text):
+            return  # Whisper garbage on silence/background sound: not shown, not sent to AI
         key = (self.meeting.id, seg.source)
         if seg.start_ms < self.local_final_end.get(key, -1):
             return  # already delivered (re-sent after a reconnect)
