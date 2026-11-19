@@ -147,3 +147,24 @@ def test_the_users_own_context_is_cached_separately_from_the_transcript() -> Non
         "cache_control": {"type": "ephemeral"},
     }
     assert blocks[1] == {"type": "text", "text": "<transcript>\nOi\n</transcript>"}
+
+
+def test_models_without_forced_tool_choice_fall_back_to_auto() -> None:
+    choices: list[Any] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        choice = json.loads(request.content)["tool_choice"]
+        choices.append(choice)
+        if choice["type"] == "tool":
+            msg = 'tool_choice: type "tool" and "any" are not supported for this model.'
+            return httpx.Response(
+                400, json={"error": {"type": "invalid_request_error", "message": msg}}
+            )
+        return httpx.Response(200, json=body())
+
+    p = AnthropicProvider(
+        api_key="sk-ant-test", model="claude-sonnet-5-5", transport=httpx.MockTransport(handler)
+    )
+    assert run(p).data == ANSWER
+    assert run(p).data == ANSWER  # remembered: no second rejected call
+    assert [c["type"] for c in choices] == ["tool", "auto", "auto"]

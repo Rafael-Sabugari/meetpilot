@@ -216,3 +216,25 @@ def test_question_in_the_middle_of_an_utterance_is_found() -> None:
 
 def test_a_tag_question_after_a_statement_is_still_not_a_question() -> None:
     assert not assess("O deploy foi ontem à noite. Certo?").is_question
+
+
+def test_a_re_transcribed_question_is_the_same_question() -> None:
+    from app.ai.questions import _norm, same_question
+
+    full = _norm(
+        "Nice, clear and specific. Second question. In a sales force save cycle, what "
+        "executes first validation rules or record triggered flows?"
+    )
+    fragment = _norm("Second, in a salesforce, save cycle, what executes...")
+    assert same_question(full, fragment)
+    assert same_question(fragment, full)
+    other = _norm("Can you walk me through a complex bug you fixed related to CPU limits?")
+    assert not same_question(full, other)
+    assert not same_question(_norm("E o prazo?"), _norm("E o custo?"))
+
+
+def test_policy_reports_repeats_of_answered_questions() -> None:
+    p = AutoAnswerPolicy()
+    assert p.offer("In a Salesforce save cycle, what executes first, validation rules or flows?", 0)
+    assert p.is_repeat("Second, in a salesforce save cycle, what executes first?", 5)
+    assert not p.is_repeat("How do you handle governor limits in batch jobs?", 5)

@@ -72,6 +72,7 @@ class LiveAssist:
         meeting_language: str,
         context: deque[ContextSegment],
         copilot_remaining: int,
+        answer_llm: LLMProvider | None = None,
         history: deque[tuple[str, str]] | None = None,
         max_context_chars: int,
         max_output_tokens: int,
@@ -82,6 +83,7 @@ class LiveAssist:
         self.utterance_gap = utterance_gap
         self.emit = emit
         self.llm = llm
+        self.answer_llm = answer_llm or llm
         self.meeting_language = meeting_language
         self.context = context
         self.history: deque[tuple[str, str]] = history if history is not None else deque(maxlen=12)
@@ -163,6 +165,8 @@ class LiveAssist:
         via: str,
         segment_ids: list[str] | None = None,
     ) -> None:
+        if self.policy.is_repeat(text, self.clock()):
+            return  # same question again (re-transcribed or rephrased): already handled
         # Derived from the segment id, which stays unique across reconnects.
         qid = f"q-{seg.segment_id}"
         self._question_ids[text] = qid
@@ -258,7 +262,7 @@ class LiveAssist:
             self.copilot_remaining -= 1  # reserve before the call (parallel safety)
             try:
                 result = await ask(
-                    self.llm,
+                    self.answer_llm,
                     mode="ask",
                     question=(
                         f'Others just asked: "{question}". Suggest what the User could say in '

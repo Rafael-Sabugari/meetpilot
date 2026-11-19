@@ -90,3 +90,21 @@ def test_production_requires_anthropic_key_for_claude() -> None:
                 "llm_provider": "anthropic",
             }
         )
+
+
+def test_answers_can_use_a_stronger_model() -> None:
+    from app.core.config import Settings
+    from app.main import create_app
+
+    s = Settings(
+        llm_provider="anthropic",
+        anthropic_api_key="sk-ant-test",
+        anthropic_model="claude-haiku-5-5",
+        anthropic_answer_model="claude-sonnet-5-5",
+    )
+    app = create_app(s)
+    assert app.state.llm_provider._model == "claude-haiku-5-5"
+    assert app.state.answer_llm_provider._model == "claude-sonnet-5-5"
+
+    same = create_app(Settings(llm_provider="anthropic", anthropic_api_key="sk-ant-test"))
+    assert same.state.answer_llm_provider is same.state.llm_provider

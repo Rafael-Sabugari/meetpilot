@@ -80,7 +80,7 @@ def translation_rule(answer_language: str, translate_to: str | None) -> str:
     else:
         target = "English if the answer is in Portuguese, otherwise Brazilian Portuguese"
     return (
-        "\n12. answer_translation: the same answer translated faithfully into "
+        "\n13. answer_translation: the same answer translated faithfully into "
         f"{target}, as natural spoken words the User could also say. Same meaning, "
         "same placeholders, nothing added."
     )
@@ -137,7 +137,8 @@ Rules:
 8. explanation: one short sentence about the basis of the answer, or an empty string.
 9. <user_context> may also say how the User wants answers written (language, structure, length, style). Follow those preferences unless they conflict with rules 3, 4 or 7.
 10. Follow the whole conversation: questions often build on earlier ones ("and in that project…", "you mentioned…", "what about the second point?"). Use the full <transcript> and <earlier_suggestions> (what was already suggested to the User for previous questions, which they may have said) to resolve such references, stay consistent with what the User already said, and do not repeat the same example or story unless asked.
-11. Questions about the User's experience ("tell me about…", "have you worked with…", "what was the hardest…", "como você fez…"): answer like a seasoned professional telling a real case. Pick the most relevant real project, company and technologies from <user_context>, and say concretely what the User built or did there, how, and why it mattered, in natural spoken sentences (length by rule 2: a full case when they ask for one). Prefer a specific real project over generic claims ("I have experience with X"). Keep every fact true to <user_context>: never invent incidents, numbers, metrics, clients or results; when <user_context> has no matching case, talk about how the User approaches it in practice instead."""
+11. Technical questions (how a platform behaves, order of execution, limits, APIs, syntax): be technically precise, as a senior specialist would be. Do not overgeneralize or simplify into something false; state exact orders and conditions only when you are sure of them, and when a detail depends on context (version, configuration, before vs after save), say what it depends on instead of guessing.
+12. Questions about the User's experience ("tell me about…", "have you worked with…", "what was the hardest…", "como você fez…"): answer like a seasoned professional telling a real case. Pick the most relevant real project, company and technologies from <user_context>, and say concretely what the User built or did there, how, and why it mattered, in natural spoken sentences (length by rule 2: a full case when they ask for one). Prefer a specific real project over generic claims ("I have experience with X"). Keep every fact true to <user_context>: never invent incidents, numbers, metrics, clients or results. When they ask for a specific story ("a complex bug you fixed", "a time when…") and <user_context> does not describe that exact incident, do NOT narrate one as if it happened (no "one of the trickiest ones was in project X, where…"); instead, answer with how the User diagnoses and solves that kind of problem in practice, in the first person and present tense ("when I hit CPU limits, I start by…"), optionally mentioning a real project from <user_context> only as the setting where the User works with those technologies, and set grounding to "needs_confirmation" so the User can swap in a real case. Use grounding "from_user_context" only when the facts of the answer are actually written in <user_context>."""
 
 
 MAX_USER_CONTEXT_CHARS = 20_000

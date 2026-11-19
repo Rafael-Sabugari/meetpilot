@@ -26,6 +26,81 @@ def _norm(text: str) -> str:
     return " ".join(t.split())
 
 
+_STOP = frozenset(
+    [
+        "a",
+        "o",
+        "as",
+        "os",
+        "e",
+        "de",
+        "da",
+        "do",
+        "das",
+        "dos",
+        "em",
+        "no",
+        "na",
+        "nos",
+        "nas",
+        "um",
+        "uma",
+        "uns",
+        "umas",
+        "que",
+        "se",
+        "por",
+        "para",
+        "pra",
+        "com",
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "of",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "with",
+        "is",
+        "are",
+        "was",
+        "be",
+        "do",
+        "does",
+        "did",
+        "you",
+        "your",
+        "it",
+        "this",
+        "that",
+        "what",
+        "which",
+        "how",
+    ]
+)
+
+
+def _content_words(norm: str) -> set[str]:
+    # "sales force" and "salesforce" are the same word for this purpose.
+    words = norm.replace("sales force", "salesforce").split()
+    return {w for w in words if w not in _STOP and len(w) > 1}
+
+
+def same_question(a_norm: str, b_norm: str) -> bool:
+    """Equal, or one is mostly contained in the other (a re-transcribed fragment)."""
+    if a_norm == b_norm:
+        return True
+    a, b = _content_words(a_norm), _content_words(b_norm)
+    small = min(len(a), len(b))
+    if small < 4:
+        return False
+    return len(a & b) / small >= 0.75
+
+
 REQUEST_OPENERS = (
     # pt
     "me fala",
@@ -238,9 +313,15 @@ class AutoAnswerPolicy:
             self._waiting.popleft()
 
     def _is_duplicate(self, key: str) -> bool:
-        return any(k == key for _, k in self._seen) or any(
-            _norm(t) == key for _, t in self._waiting
+        return any(same_question(k, key) for _, k in self._seen) or any(
+            same_question(_norm(t), key) for _, t in self._waiting
         )
+
+    def is_repeat(self, text: str, now: float) -> bool:
+        """The same question was already answered or queued recently (re-transcribed or
+        repeated in other words)."""
+        self._prune(now)
+        return self._is_duplicate(_norm(text))
 
     def _allowed(self, now: float) -> bool:
         return (

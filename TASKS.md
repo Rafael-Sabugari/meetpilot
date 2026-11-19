@@ -193,3 +193,6 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] perguntas sobre experiência: caso real do contexto (projeto, empresa, o que fez, como e por quê), 3–5 frases, sem inventar fatos
 - [x] cache de prompt no Anthropic (instruções + "Meu contexto"), para o contexto maior não encarecer cada sugestão
 - [x] tamanho da resposta conforme a pergunta: 1–2 frases (confirmação), 2–4 (normal), 5–12 (como funciona, arquitetura, cenário/troubleshooting, comparação, perguntas com várias partes, "explica melhor"); sempre falado, com transições; saída máx. 2000 tokens
+- [x] precisão técnica (regra 11) e proibição de narrar casos que não estão no contexto (responde com a abordagem prática, grounding needs_confirmation)
+- [x] pergunta repetida/re-transcrita (fragmento da mesma pergunta) não gera segunda sugestão (`same_question`)
+- [x] modelo opcional mais forte só para as sugestões (`MEETPILOT_ANTHROPIC_ANSWER_MODEL`, ex. claude-sonnet-5-5); fallback para tool_choice "auto" em modelos que não aceitam escolha forçada

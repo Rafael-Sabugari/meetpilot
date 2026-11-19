@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     anthropic_base_url: str = "https://api.anthropic.com/v1"
     # Cheapest current Claude model (US$0.10 / 0.50 per M tokens, Nov 2026).
     anthropic_model: str = "claude-haiku-5-5"
+    # Optional stronger model just for suggested answers (question checks and live
+    # translation stay on anthropic_model). Empty = same as anthropic_model.
+    anthropic_answer_model: str = ""
     anthropic_timeout_seconds: float = 30.0
     openai_api_key: SecretStr | None = None
     openai_base_url: str = "https://api.openai.com/v1"

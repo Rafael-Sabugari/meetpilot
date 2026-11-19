@@ -68,6 +68,14 @@ def create_app(
     app.state.active_streams = ActiveStreams()
     app.state.stt_provider = stt_provider or make_stt_provider(settings)
     app.state.llm_provider = llm_provider or make_llm_provider(settings)
+    # Suggested answers may use a stronger model (anthropic_answer_model).
+    app.state.answer_llm_provider = (
+        app.state.llm_provider
+        if llm_provider is not None
+        or settings.llm_provider != "anthropic"
+        or not settings.anthropic_answer_model
+        else make_llm_provider(settings, answers=True)
+    )
     if settings.cors_origins:
         app.add_middleware(
             CORSMiddleware,

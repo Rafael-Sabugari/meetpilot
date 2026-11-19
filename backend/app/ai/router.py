@@ -70,7 +70,7 @@ async def copilot(
     meeting_id: str, body: CopilotRequest, request: Request, user: CurrentUser, db: DB
 ) -> CopilotResponse:
     settings: Settings = request.app.state.settings
-    provider: LLMProvider = request.app.state.llm_provider
+    provider: LLMProvider = request.app.state.answer_llm_provider
     meeting = await owned_meeting(db, meeting_id, user)
 
     if not _limiter(settings.copilot_requests_per_minute).hit(user.id):

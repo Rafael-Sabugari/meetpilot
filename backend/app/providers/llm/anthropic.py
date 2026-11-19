@@ -100,6 +100,8 @@ class AnthropicProvider:
             transport=transport,
         )
 
+    _auto_tool_choice = False
+
     async def aclose(self) -> None:
         await self._client.aclose()
 
@@ -120,8 +122,20 @@ class AnthropicProvider:
             schema=schema,
             max_output_tokens=max_output_tokens,
         )
+        if self._auto_tool_choice:
+            payload["tool_choice"] = {"type": "auto"}
         try:
             resp = await self._client.post("/messages", json=payload)
+            if (
+                resp.status_code == 400
+                and not self._auto_tool_choice
+                and "tool_choice" in resp.text
+            ):
+                # Some models only accept tool_choice "auto"; the system prompt and tool
+                # description still require exactly one call to the schema tool.
+                self._auto_tool_choice = True
+                payload["tool_choice"] = {"type": "auto"}
+                resp = await self._client.post("/messages", json=payload)
         except httpx.TimeoutException as e:
             raise LLMError("the AI took too long to answer", retryable=True) from e
         except httpx.HTTPError as e:

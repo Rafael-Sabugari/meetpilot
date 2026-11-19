@@ -511,6 +511,7 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
         assist_factory=lambda sess: LiveAssist(
             emit=sess.emit,
             llm=llm,
+            answer_llm=app.state.answer_llm_provider,
             meeting_language=meeting.language,
             context=active.context_for(meeting.id),
             history=active.history_for(meeting.id),
