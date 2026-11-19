@@ -467,6 +467,7 @@ def test_follow_ups_see_earlier_suggestions_and_experience_rule() -> None:
     rules = instructions("pt-BR", "natural")
     assert "Follow the whole conversation" in rules
     assert "never invent incidents" in rules
+    assert "closest related story" in rules
     assert "<earlier_suggestions>" not in build_input("q", build_context([], 10), "en")
 
 
