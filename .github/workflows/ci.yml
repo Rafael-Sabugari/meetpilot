@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: "Also build the Windows app"
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -12,8 +18,38 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
 
+# Actions minutes are limited on a private repo (macOS counts 10x, Windows 2x), so each
+# job runs only when its part of the code changed, and Windows only when asked.
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.f.outputs.frontend }}
+      backend: ${{ steps.f.outputs.backend }}
+      native: ${{ steps.f.outputs.native }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            frontend:
+              - 'apps/**'
+              - 'packages/**'
+              - 'package*.json'
+            backend:
+              - 'backend/**'
+            native:
+              - 'apps/**'
+              - 'crates/**'
+              - 'packages/**'
+              - 'Cargo.*'
+              - 'package*.json'
+              - '.github/workflows/**'
+
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -25,6 +61,8 @@ jobs:
       - run: npm run build -w @meetpilot/desktop
 
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: backend } }
     services:
@@ -52,6 +90,8 @@ jobs:
           uv run alembic check
 
   rust-linux:
+    needs: changes
+    if: needs.changes.outputs.native == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -74,10 +114,12 @@ jobs:
   # so this proves compilation, linking, unit/session tests and capability detection;
   # real capture is validated manually with mp-audio-probe (docs/AUDIO_CAPTURE.md).
   desktop-native:
+    needs: changes
+    if: needs.changes.outputs.native == 'true' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: ${{ fromJSON(inputs.windows && '["macos-latest","windows-latest"]' || '["macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5

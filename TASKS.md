@@ -196,3 +196,4 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] precisão técnica (regra 11) e proibição de narrar casos que não estão no contexto (responde com a abordagem prática, grounding needs_confirmation)
 - [x] pergunta repetida/re-transcrita (fragmento da mesma pergunta) não gera segunda sugestão (`same_question`)
 - [x] modelo opcional mais forte só para as sugestões (`MEETPILOT_ANTHROPIC_ANSWER_MODEL`, ex. claude-sonnet-5-5); fallback para tool_choice "auto" em modelos que não aceitam escolha forçada
+- [x] CI econômica (repo privado: ~2000 min/mês, macOS conta 10x): cada job só roda quando a parte dele mudou; build do Windows só manual (workflow_dispatch → windows)
