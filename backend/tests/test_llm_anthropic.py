@@ -184,7 +184,7 @@ def test_partial_string_field_reads_an_unfinished_json_string() -> None:
 def test_streaming_reports_the_answer_while_it_is_written() -> None:
     full = json.dumps(ANSWER)
     chunks = [full[i : i + 7] for i in range(0, len(full), 7)]
-    events = [
+    events: list[dict[str, Any]] = [
         {
             "type": "message_start",
             "message": {"usage": {"input_tokens": 10, "cache_read_input_tokens": 5}},
