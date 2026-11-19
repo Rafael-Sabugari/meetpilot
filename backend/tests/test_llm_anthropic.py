@@ -236,5 +236,5 @@ def test_streaming_reports_the_answer_while_it_is_written() -> None:
     assert seen[0]["stream"] is True
     assert res.data == ANSWER
     assert (res.input_tokens, res.output_tokens) == (15, 42)
-    assert partials and all(ANSWER["answer"].startswith(x) for x in partials)
+    assert partials and all(str(ANSWER["answer"]).startswith(x) for x in partials)
     assert len(partials) >= 2
