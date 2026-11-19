@@ -199,3 +199,4 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] CI econômica (repo privado: ~2000 min/mês, macOS conta 10x): cada job só roda quando a parte dele mudou; build do Windows só manual (workflow_dispatch → windows)
 - [x] "quick/rápido/resumindo" → 2–3 frases; respostas longas 5–8 frases (até 10 em desenho com várias partes) e sempre com o essencial nas 2 primeiras frases
 - [x] perguntas de caso ("incidente em produção", "prazo apertado", "conflito"…) sempre usam a história do contexto mais próxima, mesmo com outro rótulo; abordagem genérica só quando nenhuma história se relaciona
+- [x] limite do "Meu contexto" 20k → 60k caracteres (app, servidor e docs); repositório público → CI sem limite de minutos

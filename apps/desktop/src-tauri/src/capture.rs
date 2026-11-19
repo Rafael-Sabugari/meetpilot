@@ -213,7 +213,7 @@ pub struct LiveOptions {
 }
 
 /// Same limit as the server (`LiveSettings.user_context`).
-pub const MAX_USER_CONTEXT_CHARS: usize = 20_000;
+pub const MAX_USER_CONTEXT_CHARS: usize = 60_000;
 
 pub fn clean_user_context(v: Option<&str>) -> Option<String> {
     let t = v?.trim();
@@ -722,7 +722,7 @@ mod tests {
         );
         let with_ctx: LiveOptions = serde_json::from_str(&format!(
             r#"{{"autoSuggestions":"all","tone":"natural","translateTo":null,"userContext":"  Sou o Rafael {}  "}}"#,
-            "x".repeat(25_000)
+            "x".repeat(70_000)
         ))
         .unwrap();
         let sent = with_ctx.to_server();

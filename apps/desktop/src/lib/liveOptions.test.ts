@@ -22,7 +22,7 @@ describe("live preferences", () => {
     expect(parseLivePrefs(JSON.stringify({ userContext: "Sou o Rafael" })).userContext).toBe("Sou o Rafael");
     expect(parseLivePrefs(JSON.stringify({ userContext: "   " })).userContext).toBeNull();
     expect(parseLivePrefs(JSON.stringify({ userContext: 42 })).userContext).toBeNull();
-    expect(parseLivePrefs(JSON.stringify({ userContext: "x".repeat(25000) })).userContext).toHaveLength(20000);
+    expect(parseLivePrefs(JSON.stringify({ userContext: "x".repeat(70000) })).userContext).toHaveLength(60000);
     expect(toLiveOptions({ ...DEFAULT_LIVE, userContext: "  dev backend  " }).userContext).toBe("dev backend");
     expect(toLiveOptions({ ...DEFAULT_LIVE, userContext: "  " }).userContext).toBeNull();
   });

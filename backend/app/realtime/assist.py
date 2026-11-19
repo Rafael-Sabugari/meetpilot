@@ -42,7 +42,7 @@ class LiveSettings(BaseModel):
     tone: Tone = "natural"
     translate_to: Literal["pt-BR", "en"] | None = None
     # Written by the user about themselves and the meeting (kept in memory only).
-    user_context: str | None = Field(default=None, max_length=20_000)
+    user_context: str | None = Field(default=None, max_length=60_000)
 
     @field_validator("user_context")
     @classmethod

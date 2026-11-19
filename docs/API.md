@@ -61,7 +61,7 @@ Request:
   "transcript": [{ "source": "system"|"microphone", "text": "≤2000", "start_ms": 0 }],  // ≤500, sent by the desktop, never stored
   "tone": "natural" | "concise" | "technical" | "formal",
   "language": "pt-BR" | "en" | null,    // answer language; default = meeting language
-  "user_context": "≤20000 chars | null",
+  "user_context": "≤60000 chars | null",
   "translate_to": "pt-BR" | "en" | null } // non-null: also return the answer in the other language (pt-BR <-> en)
 ```
 Response:
@@ -95,7 +95,7 @@ or answer text is stored or logged. Works for active and finished meetings.
    (`local_audio_seconds` usage rows are informational).
 4. Client control (text): `capture.paused`, `capture.resumed`, `capture.stopped`, and
    `{"type": "copilot.settings", "auto_suggestions": "off"|"directed"|"all", "tone": "natural"|"concise"|"technical"|"formal", "translate_to": "pt-BR"|"en"|null}`
-   plus optional `"user_context": "<≤ 20000 chars written by the user>"`
+   plus optional `"user_context": "<≤ 60000 chars written by the user>"`
    (any time; invalid values get an `error` with code `bad_settings`, the stream stays open).
    Defaults: `directed`, `natural`, no translation.
 5. Server events (envelope `{v:1, type, meeting_id, seq, ts, payload}`):

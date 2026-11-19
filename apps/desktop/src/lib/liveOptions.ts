@@ -5,7 +5,7 @@ export interface LivePrefs extends LiveOptions {
   translationView: TranslationView;
 }
 
-export const MAX_USER_CONTEXT = 20000;
+export const MAX_USER_CONTEXT = 60000;
 
 export const DEFAULT_LIVE: LivePrefs = {
   autoSuggestions: "directed",

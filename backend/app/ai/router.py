@@ -31,7 +31,7 @@ class CopilotRequest(BaseModel):
     # Answer language; defaults to the meeting language.
     language: Literal["pt-BR", "en"] | None = None
     # Written by the user about themselves and the meeting; used for this answer only.
-    user_context: str | None = Field(default=None, max_length=20_000)
+    user_context: str | None = Field(default=None, max_length=60_000)
     # Also return the answer translated into this language (the user's own), when different.
     translate_to: Literal["pt-BR", "en"] | None = None
 

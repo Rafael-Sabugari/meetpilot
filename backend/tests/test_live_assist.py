@@ -275,7 +275,7 @@ def test_user_context_is_limited(tmp_path: Path) -> None:
     llm = FakeLLMProvider()
     with make_client(tmp_path, llm) as c:
         auth = register_and_login(c)
-        events = run_meeting(c, auth, settings={"user_context": "x" * 20_001}, system_lines=1)
+        events = run_meeting(c, auth, settings={"user_context": "x" * 60_001}, system_lines=1)
         assert of(events, "error")[0]["code"] == "bad_settings"
 
 
