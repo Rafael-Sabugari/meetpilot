@@ -58,7 +58,11 @@ fn whisper_transcribes_known_speech_through_the_streaming_engine() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let e2 = Arc::clone(&events);
     let t = LocalTranscriber::start(
-        WhisperModel::factory(model.into()),
+        // With a vocabulary prompt, as the app sends it in free mode.
+        WhisperModel::factory_with_prompt(
+            model.into(),
+            Some("Salesforce, Apex, LWC, SOQL, Trigger.new.".to_string()),
+        ),
         EngineConfig::for_language("en"),
         Arc::new(move |e| e2.lock().unwrap().push(e)),
     );

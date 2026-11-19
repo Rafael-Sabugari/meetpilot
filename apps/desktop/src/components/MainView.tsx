@@ -1,3 +1,4 @@
+import { vocabularyFrom } from "../lib/vocabulary";
 import { useEffect, useMemo, useState } from "react";
 import type { AudioSource, DeviceInfo, Language, PermissionState, SupportLevel } from "@meetpilot/shared-types";
 import { api, isTauri, toCommandError, type CapabilitiesDto, type StatusDto } from "../lib/api";
@@ -112,6 +113,7 @@ export function MainView({ t }: { t: T }) {
               live: toLiveOptions(live),
               engine: effectiveEngine,
               model: effectiveEngine === "local" ? (localModel?.id ?? null) : null,
+              vocabulary: effectiveEngine === "local" ? vocabularyFrom(live.userContext) : null,
             }
           : null,
     });

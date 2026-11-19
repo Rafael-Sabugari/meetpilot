@@ -244,6 +244,9 @@ pub struct TranscriptionRequest {
     /// Local model id (free mode only); defaults to the recommended one.
     #[serde(default)]
     pub model: Option<String>,
+    /// Names and terms likely to be said (free mode): spelling hints for Whisper.
+    #[serde(default)]
+    pub vocabulary: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -449,6 +452,9 @@ pub async fn start_capture(
                     &app,
                     &t.language,
                     t.model.as_deref(),
+                    t.vocabulary
+                        .as_deref()
+                        .map(|v| v.chars().take(2_000).collect()),
                     Arc::clone(&u.handle),
                 ) {
                     Ok(l) => u.local = Some(l),

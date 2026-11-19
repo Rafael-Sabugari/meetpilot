@@ -34,6 +34,15 @@ impl WhisperModel {
     }
 
     pub fn recognizer(&self) -> Result<Box<dyn Recognizer>, String> {
+        self.recognizer_with_prompt(None)
+    }
+
+    /// `prompt`: names and technical terms likely to be said (Whisper's initial prompt),
+    /// so jargon like "Salesforce", "SOQL" or "Trigger.new" is spelled right.
+    pub fn recognizer_with_prompt(
+        &self,
+        prompt: Option<String>,
+    ) -> Result<Box<dyn Recognizer>, String> {
         let state = self
             .ctx
             .create_state()
@@ -41,12 +50,24 @@ impl WhisperModel {
         let threads = std::thread::available_parallelism()
             .map(|n| n.get().saturating_sub(1).clamp(1, 8))
             .unwrap_or(4) as i32;
-        Ok(Box::new(WhisperRecognizer { state, threads }))
+        let prompt = prompt.map(|p| clean_prompt(&p)).filter(|p| !p.is_empty());
+        Ok(Box::new(WhisperRecognizer {
+            state,
+            threads,
+            prompt,
+        }))
     }
 
     /// Factory that loads the model on the engine's worker thread.
     pub fn factory(path: std::path::PathBuf) -> RecognizerFactory {
-        Box::new(move || WhisperModel::load(&path)?.recognizer())
+        Self::factory_with_prompt(path, None)
+    }
+
+    pub fn factory_with_prompt(
+        path: std::path::PathBuf,
+        prompt: Option<String>,
+    ) -> RecognizerFactory {
+        Box::new(move || WhisperModel::load(&path)?.recognizer_with_prompt(prompt))
     }
 }
 
@@ -60,15 +81,42 @@ pub fn audio_ctx(samples: usize) -> i32 {
     needed.clamp(FLOOR, FULL) as i32
 }
 
+/// Whisper's prompt window is ~224 tokens; keep the vocabulary well inside it.
+pub const MAX_PROMPT_CHARS: usize = 600;
+
+/// One line, no control characters, bounded length (cut at a word boundary).
+pub fn clean_prompt(raw: &str) -> String {
+    let one_line: String = raw
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if one_line.chars().count() <= MAX_PROMPT_CHARS {
+        return one_line;
+    }
+    let cut: String = one_line.chars().take(MAX_PROMPT_CHARS).collect();
+    match cut.rfind(' ') {
+        Some(i) => cut[..i].to_string(),
+        None => cut,
+    }
+}
+
 struct WhisperRecognizer {
     state: WhisperState,
     threads: i32,
+    prompt: Option<String>,
 }
 
 impl Recognizer for WhisperRecognizer {
     fn transcribe(&mut self, audio: &[f32], language: &str) -> Result<String, String> {
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(Some(language));
+        if let Some(p) = self.prompt.as_deref() {
+            // Spelling hints only; each utterance still starts without previous text.
+            params.set_initial_prompt(p);
+        }
         params.set_n_threads(self.threads);
         params.set_translate(false);
         // Each utterance is independent: avoids repetition loops carried across chunks.
@@ -105,6 +153,19 @@ impl Recognizer for WhisperRecognizer {
 #[cfg(test)]
 mod tests {
     use super::audio_ctx;
+
+    #[test]
+    fn prompt_is_one_bounded_line() {
+        use super::{clean_prompt, MAX_PROMPT_CHARS};
+        assert_eq!(
+            clean_prompt("  Salesforce,\nApex,\tLWC  "),
+            "Salesforce, Apex, LWC"
+        );
+        let long = "Trigger.new ".repeat(100);
+        let p = clean_prompt(&long);
+        assert!(p.chars().count() <= MAX_PROMPT_CHARS);
+        assert!(p.ends_with("Trigger.new"));
+    }
 
     #[test]
     fn encoder_window_follows_the_utterance_length() {

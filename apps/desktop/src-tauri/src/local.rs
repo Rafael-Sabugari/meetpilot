@@ -188,14 +188,14 @@ pub fn rfc3339(secs: i64) -> String {
     )
 }
 
-fn factory(path: std::path::PathBuf) -> RecognizerFactory {
+fn factory(path: std::path::PathBuf, prompt: Option<String>) -> RecognizerFactory {
     #[cfg(feature = "local-whisper")]
     {
-        meetpilot_local_stt::whisper::WhisperModel::factory(path)
+        meetpilot_local_stt::whisper::WhisperModel::factory_with_prompt(path, prompt)
     }
     #[cfg(not(feature = "local-whisper"))]
     {
-        let _ = path;
+        let _ = (path, prompt);
         Box::new(|| Err("Private mode is not included in this build.".to_string()))
     }
 }
@@ -206,6 +206,7 @@ pub fn start_local(
     app: &AppHandle,
     language: &str,
     model: Option<&str>,
+    vocabulary: Option<String>,
     uplink: Arc<StreamHandle>,
 ) -> Result<Arc<LocalTranscriber>, CommandError> {
     if !engine_available() {
@@ -279,7 +280,7 @@ pub fn start_local(
     });
 
     Ok(Arc::new(LocalTranscriber::start(
-        factory(path),
+        factory(path, vocabulary),
         EngineConfig::for_language(language),
         sink,
     )))

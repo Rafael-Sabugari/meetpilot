@@ -92,6 +92,8 @@ export interface StartRequest {
     /** "cloud" = Deepgram via the server; "local" = Whisper on this computer (free). */
     engine?: SttEngine;
     model?: string | null;
+    /** Names and technical terms for the free (Whisper) engine's spelling. */
+    vocabulary?: string | null;
   } | null;
 }
 
