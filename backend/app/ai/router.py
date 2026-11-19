@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field, model_validator
 
 from app.ai.context import ContextSegment, build_context
-from app.ai.copilot import Grounding, Mode, Tone, ask
+from app.ai.copilot import Grounding, Mode, Tone, ask, translate_answer
 from app.auth.deps import DB, CurrentUser
 from app.auth.ratelimit import RateLimiter
 from app.core.config import Settings
@@ -96,12 +96,21 @@ async def copilot(
             tone=body.tone,
             max_output_tokens=settings.copilot_max_output_tokens,
             user_context=body.user_context,
-            translate_to=body.translate_to,
             earlier=list(history),
         )
     except LLMError as e:
         code = status.HTTP_503_SERVICE_UNAVAILABLE if e.retryable else status.HTTP_502_BAD_GATEWAY
         raise HTTPException(code, str(e)) from None
+
+    # Translation in a separate fast call: the answer model writes half as much.
+    translation: str | None = None
+    if body.translate_to:
+        try:
+            translation, _ = await translate_answer(
+                request.app.state.llm_provider, result.answer, answer_language
+            )
+        except LLMError:
+            translation = None  # the answer still goes out
 
     if body.mode == "ask" and body.question:
         history.append((body.question, result.answer))
@@ -129,7 +138,7 @@ async def copilot(
         grounding=result.grounding,
         explanation=result.explanation,
         missing_info=result.missing_info,
-        answer_translation=result.answer_translation,
+        answer_translation=translation,
         provider=provider.name,
         context=ContextInfo(
             used_segments=ctx.used_segments,

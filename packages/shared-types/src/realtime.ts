@@ -18,6 +18,8 @@ export const REALTIME_EVENT_TYPES = [
   "answer.started",
   "answer.completed",
   "answer.failed",
+  "answer.delta",
+  "answer.translated",
   "usage.updated",
   "meeting.summary.ready",
   "error",
@@ -116,6 +118,18 @@ export interface AnswerStartedPayload {
 }
 
 export type AnswerCompletedPayload = CopilotAnswer & { question_id: string; question: string };
+
+/** `answer.delta`: the answer written so far (full text, grows until answer.completed). */
+export interface AnswerDeltaPayload {
+  question_id: string;
+  text: string;
+}
+
+/** `answer.translated`: the answer in the other language, right after answer.completed. */
+export interface AnswerTranslatedPayload {
+  question_id: string;
+  answer_translation: string;
+}
 
 export interface AnswerFailedPayload {
   question_id: string;

@@ -25,6 +25,10 @@ class EventType(StrEnum):
     ANSWER_STARTED = "answer.started"
     ANSWER_COMPLETED = "answer.completed"
     ANSWER_FAILED = "answer.failed"
+    # Streaming text of an answer being written (full text so far) and its translation,
+    # which arrives right after answer.completed.
+    ANSWER_DELTA = "answer.delta"
+    ANSWER_TRANSLATED = "answer.translated"
     USAGE_UPDATED = "usage.updated"
     MEETING_SUMMARY_READY = "meeting.summary.ready"
     ERROR = "error"

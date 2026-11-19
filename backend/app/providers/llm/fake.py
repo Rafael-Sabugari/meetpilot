@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from app.providers.llm.base import LLMError, LLMResult
+from app.providers.llm.base import LLMError, LLMResult, PartialCallback
 
 
 class FakeLLMProvider:
@@ -20,6 +20,7 @@ class FakeLLMProvider:
         schema_name: str,
         schema: dict[str, Any],
         max_output_tokens: int,
+        on_partial: PartialCallback | None = None,
     ) -> LLMResult:
         self.calls.append(
             {"instructions": instructions, "input_text": input_text, "schema_name": schema_name}
@@ -31,6 +32,14 @@ class FakeLLMProvider:
                 data={"translation": f"(tradução de teste) {_strip_line_tags(input_text)}"},
                 input_tokens=max(1, len(input_text) // 4),
                 output_tokens=max(1, len(input_text) // 4),
+                model="fake",
+            )
+        if schema_name == "answer_translation":
+            text = input_text.split("<answer>\n", 1)[-1].split("\n</answer>", 1)[0]
+            return LLMResult(
+                data={"translation": f"(tradução de teste) {text[:120]}"},
+                input_tokens=max(1, len(input_text) // 4),
+                output_tokens=max(1, len(text) // 4),
                 model="fake",
             )
         if schema_name == "question_check":
@@ -45,6 +54,8 @@ class FakeLLMProvider:
             )
         has_transcript = "<transcript>\n(empty)" not in input_text
         question = input_text.split("<question>\n", 1)[-1].split("\n</question>", 1)[0]
+        if on_partial is not None:
+            await on_partial("(fake LLM)")
         return LLMResult(
             data={
                 "answer": f"(fake LLM) {question[:120]}",

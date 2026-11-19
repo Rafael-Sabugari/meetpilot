@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from app.providers.llm.base import LLMError, LLMResult
+from app.providers.llm.base import LLMError, LLMResult, PartialCallback
 
 log = logging.getLogger("meetpilot.llm.openai")
 
@@ -78,6 +78,7 @@ class OpenAIProvider:
         schema_name: str,
         schema: dict[str, Any],
         max_output_tokens: int,
+        on_partial: PartialCallback | None = None,
     ) -> LLMResult:
         payload: dict[str, Any] = {
             "model": self._model,

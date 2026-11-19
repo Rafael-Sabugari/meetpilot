@@ -137,3 +137,8 @@ or answer text is stored or logged. Works for active and finished meetings.
 (5 s). The server skips frames whose `seq` it already processed for that meeting/source; the
 high-water mark is persisted with usage, so this also holds across server restarts.
 Audio received while paused is ignored (never forwarded or billed).
+
+
+### Streaming suggestions (2026-11-19)
+- `answer.delta` `{question_id, text}`: the automatic suggestion written so far (full text; grows until `answer.completed`).
+- `answer.translated` `{question_id, answer_translation}`: the suggestion in the other language (pt-BR ↔ en), sent right after `answer.completed` (which now carries `answer_translation: null`) when live translation is on.

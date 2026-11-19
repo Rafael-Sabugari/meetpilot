@@ -23,7 +23,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from app.ai.context import ContextSegment, build_context
-from app.ai.copilot import Tone, ask
+from app.ai.copilot import Tone, ask, translate_answer
 from app.ai.question_check import check as check_question
 from app.ai.questions import AutoAnswerPolicy, AutoMode, assess, should_answer, worth_checking
 from app.ai.translation import needs_translation, same_text, translate
@@ -242,6 +242,18 @@ class LiveAssist:
         self.usage.append(UsageItem("llm_input_tokens", provider, result.input_tokens))
         self.usage.append(UsageItem("llm_output_tokens", provider, result.output_tokens))
 
+    async def _translate(self, qid: str, answer: str, answer_language: str) -> None:
+        """The suggestion in the other language, sent right after the answer itself."""
+        try:
+            text, result = await translate_answer(self.llm, answer, answer_language)
+        except LLMError:
+            return  # the answer is already there; the translation is a bonus
+        self._meter(result, "answer_translation")
+        if text:
+            await self.emit(
+                EventType.ANSWER_TRANSLATED, {"question_id": qid, "answer_translation": text}
+            )
+
     async def _answer(self, qid: str, question: str) -> None:
         try:
             if self.copilot_remaining <= 0:
@@ -259,7 +271,14 @@ class LiveAssist:
                     )
                 return
             await self.emit(EventType.ANSWER_STARTED, {"question_id": qid, "question": question})
+            answer_language = (
+                self.meeting_language if self.meeting_language in ("pt-BR", "en") else "auto"
+            )
             self.copilot_remaining -= 1  # reserve before the call (parallel safety)
+
+            async def partial(text: str) -> None:
+                await self.emit(EventType.ANSWER_DELTA, {"question_id": qid, "text": text})
+
             try:
                 result = await ask(
                     self.answer_llm,
@@ -269,17 +288,13 @@ class LiveAssist:
                         "reply, following all rules."
                     ),
                     ctx=build_context(list(self.context), self.max_context_chars),
-                    answer_language=(
-                        self.meeting_language
-                        if self.meeting_language in ("pt-BR", "en")
-                        else "auto"
-                    ),
+                    answer_language=answer_language,
                     meeting_language=self.meeting_language,
                     tone=self.settings.tone,
                     max_output_tokens=self.max_output_tokens,
                     user_context=self.settings.user_context,
-                    translate_to=self.settings.translate_to,
                     earlier=list(self.history),
+                    on_partial=partial,
                 )
             except LLMError as e:
                 self.copilot_remaining += 1  # failed calls are not billed
@@ -308,11 +323,13 @@ class LiveAssist:
                     "grounding": result.grounding,
                     "explanation": result.explanation,
                     "missing_info": result.missing_info,
-                    "answer_translation": result.answer_translation,
+                    "answer_translation": None,
                     "provider": self.llm.name,
                     "requests_remaining": max(0, self.copilot_remaining),
                 },
             )
+            if self.settings.translate_to:
+                self._spawn(self._translate(qid, result.answer, answer_language))
         finally:
             nxt = self.policy.finished(self.clock())
             if nxt is not None:

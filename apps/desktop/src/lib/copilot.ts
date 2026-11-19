@@ -1,5 +1,7 @@
 import type {
   AnswerCompletedPayload,
+  AnswerDeltaPayload,
+  AnswerTranslatedPayload,
   AnswerFailedPayload,
   AnswerStartedPayload,
   CopilotAnswer,
@@ -21,6 +23,8 @@ export interface CopilotItem {
   question: string | null;
   status: "pending" | "done" | "failed";
   answer?: CopilotAnswer;
+  /** The answer as it is being written (automatic suggestions stream in). */
+  partial?: string;
   error?: string;
 }
 
@@ -86,6 +90,24 @@ export function copilotReducer(state: CopilotState, action: CopilotAction): Copi
         case "answer.completed": {
           const { question_id, question, ...answer } = env.payload as AnswerCompletedPayload;
           return copilotReducer(state, { kind: "answer", id: question_id, mode: "auto", question, answer });
+        }
+        case "answer.delta": {
+          const p = env.payload as AnswerDeltaPayload;
+          return {
+            items: state.items.map((i) =>
+              i.id === p.question_id && i.status === "pending" ? { ...i, partial: p.text } : i,
+            ),
+          };
+        }
+        case "answer.translated": {
+          const p = env.payload as AnswerTranslatedPayload;
+          return {
+            items: state.items.map((i) =>
+              i.id === p.question_id && i.answer
+                ? { ...i, answer: { ...i.answer, answer_translation: p.answer_translation } }
+                : i,
+            ),
+          };
         }
         case "answer.failed": {
           const p = env.payload as AnswerFailedPayload;

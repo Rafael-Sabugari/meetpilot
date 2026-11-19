@@ -36,7 +36,14 @@ export function AnswerCard({ t, item, compact }: { t: T; item: CopilotItem; comp
       ) : (
         !compact && <p className="answer__q">{title}</p>
       )}
-      {item.status === "pending" && <p className="muted">{t("copilot.thinking")}</p>}
+      {item.status === "pending" &&
+        (item.partial ? (
+          <p className="answer__text answer__text--writing" data-testid="answer-partial">
+            {item.partial}
+          </p>
+        ) : (
+          <p className="muted">{t("copilot.thinking")}</p>
+        ))}
       {item.status === "failed" && <p className="error-text">{item.error}</p>}
       {item.status === "done" && item.answer && (
         <>

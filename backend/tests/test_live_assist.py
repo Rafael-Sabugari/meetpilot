@@ -294,10 +294,17 @@ def test_auto_answers_also_come_in_the_users_language(tmp_path: Path) -> None:
         events = run_meeting(c, auth, settings={"auto_suggestions": "all", "translate_to": "en"})
         completed = of(events, "answer.completed")
         assert completed
-        assert all(a["answer_translation"].startswith("(tradução de teste)") for a in completed)
+        # The answer streams first (answer.delta), arrives whole, then its translation.
+        assert of(events, "answer.delta")
+        translated = of(events, "answer.translated")
+        assert {t["question_id"] for t in translated} == {a["question_id"] for a in completed}
+        assert all(t["answer_translation"].startswith("(tradução de teste)") for t in translated)
+        names = [e["type"] for e in events]
+        assert names.index("answer.delta") < names.index("answer.completed")
+        assert names.index("answer.completed") < names.index("answer.translated")
 
         events = run_meeting(c, auth, settings={"auto_suggestions": "all", "translate_to": None})
-        assert all(a["answer_translation"] is None for a in of(events, "answer.completed"))
+        assert of(events, "answer.completed") and not of(events, "answer.translated")
 
 
 def test_later_auto_answers_see_the_earlier_suggestions(tmp_path: Path) -> None:

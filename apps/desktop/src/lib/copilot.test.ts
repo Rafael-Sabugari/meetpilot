@@ -70,6 +70,26 @@ describe("automatic suggestions from the realtime stream", () => {
     expect(s.items[0].answer).not.toHaveProperty("question_id");
   });
 
+  it("streams the answer text, then adds the translation that arrives after", () => {
+    let s = copilotReducer(emptyCopilot, { kind: "server", envelope: env("answer.started", { question_id: "q-1", question: q }) });
+    s = copilotReducer(s, { kind: "server", envelope: env("answer.delta", { question_id: "q-1", text: "Eu trabalho" }, 2) });
+    expect(s.items[0]).toMatchObject({ status: "pending", partial: "Eu trabalho" });
+    s = copilotReducer(s, { kind: "server", envelope: env("answer.delta", { question_id: "q-1", text: "Eu trabalho com K8s" }, 3) });
+    expect(s.items[0].partial).toBe("Eu trabalho com K8s");
+    s = copilotReducer(s, { kind: "server", envelope: env("answer.completed", { question_id: "q-1", question: q, ...answer, answer_translation: null }, 4) });
+    expect(s.items[0]).toMatchObject({ status: "done" });
+    expect(s.items[0].partial).toBeUndefined();
+    s = copilotReducer(s, {
+      kind: "server",
+      envelope: env("answer.translated", { question_id: "q-1", answer_translation: "We can deliver on Friday." }, 5),
+    });
+    expect(s.items[0].answer?.answer_translation).toBe("We can deliver on Friday.");
+    // A late delta never overwrites a finished answer.
+    s = copilotReducer(s, { kind: "server", envelope: env("answer.delta", { question_id: "q-1", text: "x" }, 6) });
+    expect(s.items[0]).toMatchObject({ status: "done" });
+    expect(s.items[0].partial).toBeUndefined();
+  });
+
   it("shows failures even without a pending item (quota)", () => {
     const s = copilotReducer(emptyCopilot, {
       kind: "server",
