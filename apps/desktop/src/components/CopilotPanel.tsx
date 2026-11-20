@@ -33,6 +33,10 @@ export function AnswerCard({ t, item, compact }: { t: T; item: CopilotItem; comp
         <p className="answer__q" data-testid="auto-question">
           <span className="pill pill--accent">{t("copilot.mode.auto")}</span> {item.question}
         </p>
+      ) : item.mode === "reply" && item.question ? (
+        <p className="answer__q" data-testid="sent-question">
+          <span className="pill pill--accent">{t("copilot.sent")}</span> {item.question}
+        </p>
       ) : (
         !compact && <p className="answer__q">{title}</p>
       )}

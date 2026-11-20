@@ -127,6 +127,8 @@ enum Control {
     Resume,
     Settings(serde_json::Value),
     Segment(serde_json::Value),
+    /// One-off request (e.g. "answer what they said"): sent only while connected.
+    Request(serde_json::Value),
     Stop(oneshot::Sender<()>),
 }
 
@@ -218,6 +220,12 @@ impl StreamHandle {
     /// `segment_message`). Kept while disconnected and delivered after reconnecting.
     pub fn send_segment(&self, segment: serde_json::Value) {
         let _ = self.control.send(Control::Segment(segment));
+    }
+
+    /// Ask the server for a suggestion to what the others said; streamed back as
+    /// answer.started / answer.delta / answer.completed / answer.translated events.
+    pub fn send_request(&self, request: serde_json::Value) {
+        let _ = self.control.send(Control::Request(request));
     }
 
     /// Ask the server to finish (flushing final transcripts) and wait for the link to close.
@@ -402,6 +410,8 @@ impl Worker {
                                 Some(Control::Resume) => self.paused = false,
                                 Some(Control::Settings(v)) => self.settings = Some(v),
                                 Some(Control::Segment(v)) => self.queue_segment(v),
+                                // Not deliverable while disconnected; the user can retry.
+                                Some(Control::Request(_)) => {}
                                 Some(Control::Stop(ack)) => { self.stop_ack = Some(ack); break; }
                                 None => return,
                             }
@@ -528,6 +538,11 @@ impl Worker {
                             return SessionEnd::Retry;
                         }
                         self.remember_final(&v);
+                    }
+                    Some(Control::Request(v)) => {
+                        if ws.send(Message::text(v.to_string())).await.is_err() {
+                            return SessionEnd::Retry;
+                        }
                     }
                     Some(Control::Stop(ack)) => {
                         // Send what is already queued, then ask the server to finish.

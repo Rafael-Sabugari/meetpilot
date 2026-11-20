@@ -35,6 +35,10 @@ log = logging.getLogger("meetpilot.assist")
 Emit = Callable[[EventType, dict[str, Any]], Awaitable[None]]
 
 
+# What Others said, sent with "Responder ao que falaram".
+MAX_REQUEST_CHARS = 4_000
+
+
 class LiveSettings(BaseModel):
     """Sent by the desktop as `{"type": "copilot.settings", ...}`; re-sent after reconnects."""
 
@@ -84,6 +88,8 @@ class LiveAssist:
         self.emit = emit
         self.llm = llm
         self.answer_llm = answer_llm or llm
+        self._requests = 0
+        self._last_request = float("-inf")
         self.meeting_language = meeting_language
         self.context = context
         self.history: deque[tuple[str, str]] = history if history is not None else deque(maxlen=12)
@@ -254,7 +260,17 @@ class LiveAssist:
                 EventType.ANSWER_TRANSLATED, {"question_id": qid, "answer_translation": text}
             )
 
-    async def _answer(self, qid: str, question: str) -> None:
+    def request(self, said: str) -> None:
+        """The User asked for a suggestion to what Others said (not auto-detected)."""
+        text = " ".join(said.split())[:MAX_REQUEST_CHARS]
+        now = self.clock()
+        if not text or now - self._last_request < 1.0:
+            return  # empty, or a double press
+        self._last_request = now
+        self._requests += 1
+        self._spawn(self._answer(f"r-{self._requests}", text, requested=True))
+
+    async def _answer(self, qid: str, question: str, *, requested: bool = False) -> None:
         try:
             if self.copilot_remaining <= 0:
                 if not self._quota_warned:
@@ -284,8 +300,12 @@ class LiveAssist:
                     self.answer_llm,
                     mode="ask",
                     question=(
-                        f'Others just asked: "{question}". Suggest what the User could say in '
-                        "reply, following all rules."
+                        "Others just said (the part not answered yet; the User asked for a "
+                        f'reply): "{question}". Suggest what the User could say in reply, '
+                        "following all rules."
+                        if requested
+                        else f'Others just asked: "{question}". Suggest what the User could '
+                        "say in reply, following all rules."
                     ),
                     ctx=build_context(list(self.context), self.max_context_chars),
                     answer_language=answer_language,

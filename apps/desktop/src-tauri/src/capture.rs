@@ -533,6 +533,26 @@ pub fn set_live_options(state: State<'_, CaptureState>, options: LiveOptions) ->
     Ok(())
 }
 
+/// "Responder ao que falaram": ask the live session for a suggestion to `question` (what
+/// the others said since the last send). The answer streams back like automatic ones.
+#[tauri::command]
+pub fn request_reply(state: State<'_, CaptureState>, question: String) -> CmdResult<()> {
+    let question: String = question.trim().chars().take(4_000).collect();
+    if question.is_empty() {
+        return Err(CommandError::new("invalid_input", "Nothing to send yet."));
+    }
+    let guard = state.lock();
+    let uplink = guard
+        .as_ref()
+        .and_then(|a| a.uplink.as_ref())
+        .ok_or_else(|| CommandError::new("invalid_state", "Transcription is not running."))?;
+    uplink.handle.send_request(serde_json::json!({
+        "type": "copilot.request",
+        "question": question,
+    }));
+    Ok(())
+}
+
 #[tauri::command]
 pub fn pause_capture(state: State<'_, CaptureState>) -> CmdResult<StatusDto> {
     with_active(&state, |a| {

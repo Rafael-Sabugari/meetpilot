@@ -90,6 +90,13 @@ describe("automatic suggestions from the realtime stream", () => {
     expect(s.items[0].partial).toBeUndefined();
   });
 
+  it("marks answers the user asked for (r- ids) apart from detected questions", () => {
+    let s = copilotReducer(emptyCopilot, { kind: "server", envelope: env("answer.started", { question_id: "r-1", question: "Tell me about it." }) });
+    expect(s.items[0]).toMatchObject({ id: "r-1", mode: "reply", question: "Tell me about it.", status: "pending" });
+    s = copilotReducer(s, { kind: "server", envelope: env("answer.completed", { question_id: "r-1", question: "Tell me about it.", ...answer }, 2) });
+    expect(s.items[0]).toMatchObject({ mode: "reply", status: "done" });
+  });
+
   it("shows failures even without a pending item (quota)", () => {
     const s = copilotReducer(emptyCopilot, {
       kind: "server",

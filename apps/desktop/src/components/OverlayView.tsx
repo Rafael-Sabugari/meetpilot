@@ -38,7 +38,11 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
   const respond = useCallback(() => {
     if (!pending.text || copilot.pending) return;
     setSentUpTo(pending.lastId);
-    void copilot.ask("reply", pending.text, prefs.tone, transcript.state, prefs.userContext);
+    // Through the live session: the answer streams in (and the question shows above it).
+    // Falls back to a plain request if the session is not connected.
+    api.requestReply(pending.text).catch(() => {
+      void copilot.ask("reply", pending.text, prefs.tone, transcript.state, prefs.userContext);
+    });
   }, [pending.text, pending.lastId, copilot, prefs.tone, prefs.userContext, transcript.state]);
   const respondRef = useRef(respond);
   respondRef.current = respond;

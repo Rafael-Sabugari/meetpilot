@@ -144,6 +144,7 @@ export const api = {
   setOverlayProtection: (enabled: boolean) =>
     invoke<boolean>("set_overlay_protection", { enabled }),
   setOverlayShown: (visible: boolean) => invoke<void>("set_overlay_shown", { visible }),
+  requestReply: (question: string) => invoke<void>("request_reply", { question }),
   setLiveOptions: (options: LiveOptions) => invoke<void>("set_live_options", { options }),
   login: (credentials: Credentials) => invoke<AccountInfo>("account_login", { credentials }),
   register: (credentials: Credentials) => invoke<AccountInfo>("account_register", { credentials }),

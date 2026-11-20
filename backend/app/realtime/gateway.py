@@ -296,6 +296,10 @@ class StreamSession:
             return False
         elif kind == "transcript.segment" and self.local:
             await self.handle_local_segment(msg)
+        elif kind == "copilot.request" and self.assist is not None:
+            question = msg.get("question")
+            if isinstance(question, str):
+                self.assist.request(question)
         elif kind == "copilot.settings" and self.assist is not None:
             try:
                 self.assist.update_settings(msg)

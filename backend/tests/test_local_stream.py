@@ -197,3 +197,26 @@ def test_whisper_garbage_is_not_shown_or_sent_to_the_ai(tmp_path: Path) -> None:
         assert of(events, "transcript.partial") == []
         assert [f["text"] for f in of(events, "transcript.final")] == ["Okay. That was clear."]
         assert all("the.s" not in call["input_text"] for call in llm.calls)
+
+
+def test_user_can_ask_for_a_reply_to_what_others_said(tmp_path: Path) -> None:
+    c, llm = make_client(tmp_path)
+    with c:
+        auth = register_and_login(c)
+        _, events = run(
+            c,
+            auth,
+            [
+                {"type": "copilot.settings", "auto_suggestions": "off", "translate_to": "pt-BR"},
+                segment("Tell me about your last project and the team size.", 0),
+                {"type": "copilot.request", "question": "Tell me about your last project."},
+                {"type": "copilot.request", "question": "double press"},
+            ],
+        )
+        started = of(events, "answer.started")
+        assert [s["question_id"] for s in started] == ["r-1"], "auto off, double press ignored"
+        assert started[0]["question"] == "Tell me about your last project."
+        assert of(events, "answer.delta") and of(events, "answer.completed")
+        assert of(events, "answer.translated")
+        sent = [x for x in llm.calls if x["schema_name"] == "copilot_answer"][-1]["input_text"]
+        assert "the User asked for a reply" in sent

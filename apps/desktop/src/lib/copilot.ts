@@ -85,11 +85,11 @@ export function copilotReducer(state: CopilotState, action: CopilotAction): Copi
       switch (env.type) {
         case "answer.started": {
           const p = env.payload as AnswerStartedPayload;
-          return copilotReducer(state, { kind: "pending", id: p.question_id, mode: "auto", question: p.question });
+          return copilotReducer(state, { kind: "pending", id: p.question_id, mode: modeOf(p.question_id), question: p.question });
         }
         case "answer.completed": {
           const { question_id, question, ...answer } = env.payload as AnswerCompletedPayload;
-          return copilotReducer(state, { kind: "answer", id: question_id, mode: "auto", question, answer });
+          return copilotReducer(state, { kind: "answer", id: question_id, mode: modeOf(question_id), question, answer });
         }
         case "answer.delta": {
           const p = env.payload as AnswerDeltaPayload;
@@ -145,4 +145,9 @@ export function contextFromTranscript(t: TranscriptState): ContextSegment[] {
 
 export function latestAnswer(state: CopilotState): CopilotItem | undefined {
   return state.items[0];
+}
+
+/** Answers the user asked for ("Responder ao que falaram", ids "r-…") vs. detected ones. */
+function modeOf(questionId: string): CopilotItem["mode"] {
+  return questionId.startsWith("r-") ? "reply" : "auto";
 }

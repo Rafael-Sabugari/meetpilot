@@ -206,3 +206,4 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] "Responder ao que falaram" no overlay (+ atalho ⌘⇧R / Ctrl+Shift+R): envia ao Sonnet só o que os outros falaram desde o último envio; funciona junto ou no lugar das sugestões automáticas (opcional: deixar "Sugestões automáticas" desligadas)
 - [x] cenários de entrevista tratados como hipotéticos: nunca "não tenho o erro/log aqui", e sim o que procuraria e o que cada mensagem indicaria
 - [x] watchdog da captura: se o dispositivo para de mandar áudio por 4 s (ex.: AirPods trocando para modo headset), a captura é reaberta sozinha (conta em "reconexões")
+- [x] "Responder ao que falaram" pela sessão ao vivo (`copilot.request` no WebSocket): resposta em streaming como as automáticas (texto em ~2–3 s, tradução no Haiku depois) e o que os outros falaram aparece em cima da resposta ("Falaram")

@@ -42,6 +42,12 @@ describe("OverlayAnswers", () => {
     expect(trs[0].textContent).toBe("Trabalho com Apex há quatro anos.");
   });
 
+  it("shows what the others said above an answer the user asked for", () => {
+    const item: CopilotItem = { ...done("r-1", "Was it after a deployment?", "It wasn't tied to a release."), mode: "reply" };
+    render(<OverlayAnswers t={t} items={[item]} />);
+    expect(screen.getByTestId("sent-question").textContent).toContain("Was it after a deployment?");
+  });
+
   it("renders nothing without suggestions", () => {
     const { container } = render(<OverlayAnswers t={t} items={[]} />);
     expect(container.innerHTML).toBe("");
