@@ -6,7 +6,9 @@ import { recentLines } from "../lib/transcript";
 import { useCopilot } from "../hooks/useCopilot";
 import { AnswerCard } from "./CopilotPanel";
 import type { CopilotItem } from "../lib/copilot";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { pendingFromOthers } from "../lib/pending";
 import type { CopilotTone } from "@meetpilot/shared-types";
 import { api } from "../lib/api";
 import { loadLivePrefs, saveLivePrefs, toLiveOptions } from "../lib/liveOptions";
@@ -30,6 +32,23 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
   const [, rerender] = useState(0);
   const prefs = loadLivePrefs();
   const transcribing = !!(cap.status as { transcribing?: boolean } | null)?.transcribing;
+  // "Responder ao que falaram": send only what Others said since the last send.
+  const [sentUpTo, setSentUpTo] = useState<string | null>(null);
+  const pending = pendingFromOthers(transcript.state, sentUpTo);
+  const respond = useCallback(() => {
+    if (!pending.text || copilot.pending) return;
+    setSentUpTo(pending.lastId);
+    void copilot.ask("reply", pending.text, prefs.tone, transcript.state, prefs.userContext);
+  }, [pending.text, pending.lastId, copilot, prefs.tone, prefs.userContext, transcript.state]);
+  const respondRef = useRef(respond);
+  respondRef.current = respond;
+  useEffect(() => {
+    // Global shortcut (Cmd/Ctrl+Shift+R), so nothing has to be clicked during the call.
+    const off = listen("app://respond", () => respondRef.current());
+    return () => {
+      void off.then((u) => u());
+    };
+  }, []);
   const setTone = (tone: CopilotTone) => {
     const next = { ...loadLivePrefs(), tone };
     saveLivePrefs(next);
@@ -71,6 +90,18 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
       {(live || items.length > 0) && (
         <div className="overlay__copilot">
           <div className="overlay__ask">
+            {live && (
+              <button
+                className="btn btn--small btn--primary"
+                disabled={copilot.pending || !pending.text}
+                onClick={respond}
+                title={t("overlay.respondHint")}
+                data-testid="respond-pending"
+              >
+                📨 {t("overlay.respond")}
+                {pending.count > 0 ? ` (${pending.count})` : ""}
+              </button>
+            )}
             {live && (
               <button
                 className="btn btn--small"

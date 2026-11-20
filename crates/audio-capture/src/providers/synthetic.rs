@@ -49,6 +49,9 @@ pub struct FaultPlan {
     pub open_error: Mutex<Option<CaptureError>>,
     /// The first opened stream reports `DeviceUnavailable` after this many chunks (0 = never).
     pub disconnect_after_chunks: AtomicU32,
+    /// With `disconnect_after_chunks`: the stream just stops sending, without an error
+    /// (like a Bluetooth device switching profile).
+    pub silent_disconnect: AtomicBool,
     /// The next `resume()` on any stream fails with a backend error.
     pub fail_next_resume: AtomicBool,
 }
@@ -146,8 +149,9 @@ impl AudioCaptureProvider for SyntheticProvider {
         } else {
             self.faults.disconnect_after_chunks.load(Ordering::SeqCst)
         };
+        let silent = self.faults.silent_disconnect.load(Ordering::SeqCst);
         let mut stream =
-            SyntheticStream::spawn(self.config.clone(), source, sink, disconnect_after);
+            SyntheticStream::spawn(self.config.clone(), source, sink, disconnect_after, silent);
         stream.faults = Some(Arc::clone(&self.faults));
         Ok(Box::new(stream))
     }
@@ -180,6 +184,7 @@ impl SyntheticStream {
         source: AudioSource,
         sink: RawAudioSink,
         disconnect_after: u32,
+        silent: bool,
     ) -> Self {
         let running = Arc::new(AtomicBool::new(true));
         let os_paused = Arc::new(AtomicBool::new(false));
@@ -202,6 +207,9 @@ impl SyntheticStream {
                     sink.push_f32(&buf, format);
                     sent += 1;
                     if disconnect_after > 0 && sent == disconnect_after {
+                        if silent {
+                            return;
+                        }
                         sink.report_error(CaptureError::DeviceUnavailable {
                             audio: source,
                             detail: "synthetic device unplugged".into(),

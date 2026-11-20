@@ -203,3 +203,6 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] respostas mais rápidas: streaming da sugestão (`answer.delta`, fine-grained tool streaming) — texto aparece ~2,5 s; tradução da sugestão em chamada separada no Haiku depois (`answer.translated`) em vez de dobrar a saída do Sonnet (≈9 s → ≈5 s para a resposta completa)
 - [x] filtro de lixo do Whisper no servidor (`app/realtime/noise.py`): token repetido em loop, palavras com dois alfabetos, sequência de fragmentos de 1 palavra, só símbolos — não aparece nem vai para o Claude
 - [x] Whisper mais preciso em jargão: vocabulário (nomes/termos do "Meu contexto": Salesforce, SOQL, Trigger.new, Itaú…) vira o initial prompt do Whisper, sem custo de velocidade
+- [x] "Responder ao que falaram" no overlay (+ atalho ⌘⇧R / Ctrl+Shift+R): envia ao Sonnet só o que os outros falaram desde o último envio; funciona junto ou no lugar das sugestões automáticas (opcional: deixar "Sugestões automáticas" desligadas)
+- [x] cenários de entrevista tratados como hipotéticos: nunca "não tenho o erro/log aqui", e sim o que procuraria e o que cada mensagem indicaria
+- [x] watchdog da captura: se o dispositivo para de mandar áudio por 4 s (ex.: AirPods trocando para modo headset), a captura é reaberta sozinha (conta em "reconexões")

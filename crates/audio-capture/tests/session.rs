@@ -363,3 +363,44 @@ fn failed_os_resume_triggers_reconnect_instead_of_silent_stall() {
     assert_eq!(s.status().sources[0].state, SourceState::Capturing);
     s.stop();
 }
+
+#[test]
+fn a_device_that_silently_stops_sending_is_reopened() {
+    let p = SyntheticProvider::default();
+    p.faults.disconnect_after_chunks.store(5, Ordering::SeqCst);
+    p.faults.silent_disconnect.store(true, Ordering::SeqCst);
+    let opts = SessionOptions {
+        stall_timeout: Some(Duration::from_millis(300)),
+        ..fast_options()
+    };
+    let (s, rec) = session_with(p, opts, None);
+    s.start(&system_only()).unwrap();
+    assert!(
+        wait_until(Duration::from_secs(5), || s.status().sources[0].reconnects
+            >= 1),
+        "watchdog should reopen the silent stream: {:?}",
+        s.status()
+    );
+    let before = frame_count(&rec);
+    assert!(wait_until(Duration::from_secs(3), || frame_count(&rec) > before + 5));
+    assert!(matches!(
+        s.status().sources[0].state,
+        SourceState::Capturing
+    ));
+    s.stop();
+}
+
+#[test]
+fn no_watchdog_reopen_while_paused() {
+    let p = SyntheticProvider::default();
+    let opts = SessionOptions {
+        stall_timeout: Some(Duration::from_millis(200)),
+        ..fast_options()
+    };
+    let (s, _rec) = session_with(p, opts, None);
+    s.start(&system_only()).unwrap();
+    s.pause().unwrap();
+    std::thread::sleep(Duration::from_millis(800));
+    assert_eq!(s.status().sources[0].reconnects, 0);
+    s.stop();
+}

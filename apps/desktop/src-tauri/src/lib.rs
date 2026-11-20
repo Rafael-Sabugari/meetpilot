@@ -17,6 +17,7 @@ use account::AccountState;
 use capture::CaptureState;
 
 pub const EVT_SHORTCUT_ERROR: &str = "app://shortcut-error";
+pub const EVT_RESPOND: &str = "app://respond";
 
 fn primary_modifier() -> Modifiers {
     if cfg!(target_os = "macos") {
@@ -32,6 +33,8 @@ pub fn run() {
     // Ctrl/Cmd+Shift+M: pause/resume capture. Ctrl/Cmd+Shift+O: show/hide overlay.
     let pause_shortcut = Shortcut::new(Some(primary_modifier()), Code::KeyM);
     let overlay_shortcut = Shortcut::new(Some(primary_modifier()), Code::KeyO);
+    // Ctrl/Cmd+Shift+R: ask for a reply to what the others said since the last send.
+    let respond_shortcut = Shortcut::new(Some(primary_modifier()), Code::KeyR);
 
     tauri::Builder::default()
         .plugin(
@@ -48,6 +51,10 @@ pub fn run() {
                             }
                             Err(e) => log::info!("pause shortcut ignored: {}", e.message),
                         }
+                    } else if shortcut == &respond_shortcut {
+                        // The overlay handles it; show it so the answer is visible.
+                        capture::set_overlay_visible(app, true);
+                        let _ = app.emit_to("overlay", EVT_RESPOND, ());
                     } else if shortcut == &overlay_shortcut {
                         if let Some(w) = app.get_webview_window(capture::OVERLAY_LABEL) {
                             let visible = w.is_visible().unwrap_or(false);
@@ -61,7 +68,7 @@ pub fn run() {
         .manage(AccountState::default())
         .setup(move |app| {
             app.manage(local::LocalState::new(app.handle()));
-            for sc in [pause_shortcut, overlay_shortcut] {
+            for sc in [pause_shortcut, overlay_shortcut, respond_shortcut] {
                 if let Err(e) = app.global_shortcut().register(sc) {
                     // Another app may own the shortcut; the app stays fully usable without it.
                     log::warn!("could not register global shortcut {sc}: {e}");

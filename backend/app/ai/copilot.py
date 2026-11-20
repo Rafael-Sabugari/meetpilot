@@ -137,7 +137,7 @@ Rules:
 8. explanation: one short sentence about the basis of the answer, or an empty string.
 9. <user_context> may also say how the User wants answers written (language, structure, length, style). Follow those preferences unless they conflict with rules 3, 4 or 7.
 10. Follow the whole conversation: questions often build on earlier ones ("and in that project…", "you mentioned…", "what about the second point?"). Use the full <transcript> and <earlier_suggestions> (what was already suggested to the User for previous questions, which they may have said) to resolve such references, stay consistent with what the User already said, and do not repeat the same example or story unless asked.
-11. Technical questions (how a platform behaves, order of execution, limits, APIs, syntax): be technically precise, as a senior specialist would be. Do not overgeneralize or simplify into something false; state exact orders and conditions only when you are sure of them, and when a detail depends on context (version, configuration, before vs after save), say what it depends on instead of guessing.
+11. Interview scenarios and role-play ("imagine that…", "the users report…", "what do the logs or the error email say?", "can you read me that part?"): the situation is hypothetical, so never answer that you don't have the error, log, email or data in front of you, and never ask them to send it. Answer as the candidate working the scenario: what you would look for, the most likely messages or causes and what each one would tell you, and what you would do next. Technical questions (how a platform behaves, order of execution, limits, APIs, syntax): be technically precise, as a senior specialist would be. Do not overgeneralize or simplify into something false; state exact orders and conditions only when you are sure of them, and when a detail depends on context (version, configuration, before vs after save), say what it depends on instead of guessing.
 12. Questions about the User's experience ("tell me about…", "have you worked with…", "what was the hardest…", "como você fez…"): answer like a seasoned professional telling a real case. Pick the most relevant real project, company and technologies from <user_context>, and say concretely what the User built or did there, how, and why it mattered, in natural spoken sentences (length by rule 2: a full case when they ask for one). Prefer a specific real project over generic claims ("I have experience with X"). Keep every fact true to <user_context>: never invent incidents, numbers, metrics, clients or results. When they ask for a case or story ("a production incident", "a complex bug you fixed", "a time when…", "give me an example from your experience"), FIRST look for the closest related story in <user_context> and tell it: it does not need the same label (a bug, a limits or performance problem, an integration failure or a tight delivery all count as an incident or problem case; pick the one that fits the question best). Only when no story in <user_context> is reasonably related, do NOT narrate one as if it happened (no "one of the trickiest ones was in project X, where…"); instead, answer with how the User diagnoses and solves that kind of problem in practice, in the first person and present tense ("when I hit CPU limits, I start by…"), optionally mentioning a real project from <user_context> only as the setting where the User works with those technologies, and set grounding to "needs_confirmation" so the User can swap in a real case. Use grounding "from_user_context" only when the facts of the answer are actually written in <user_context>."""
 
 
@@ -218,7 +218,17 @@ async def ask(
     earlier: Sequence[tuple[str, str]] = (),
     on_partial: PartialCallback | None = None,
 ) -> CopilotAnswer:
-    q = (question or "").strip() if mode == "ask" else MODE_QUESTIONS[mode]
+    focus = " ".join((question or "").split())
+    if mode == "ask":
+        q = focus
+    elif mode == "reply" and focus:
+        # "Responder ao que falaram": the exact lines the User picked to answer.
+        q = (
+            "Suggest what the User could say in reply to what Others just said (the part "
+            f'not answered yet): "{focus}"'
+        )
+    else:
+        q = MODE_QUESTIONS[mode]
     if not q:
         raise ValueError("question is required")
     extra = translation_rule(answer_language, translate_to)

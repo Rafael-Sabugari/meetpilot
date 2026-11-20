@@ -366,7 +366,7 @@ export function MainView({ t }: { t: T }) {
           <p className="muted small">{t("overlay.protect.note")}</p>
           <h3>{t("shortcuts.title")}</h3>
           <p className="muted small">
-            <kbd>{MOD}M</kbd> {t("shortcuts.pause")} · <kbd>{MOD}O</kbd> {t("shortcuts.overlay")}
+            <kbd>{MOD}M</kbd> {t("shortcuts.pause")} · <kbd>{MOD}O</kbd> {t("shortcuts.overlay")} · <kbd>{MOD}R</kbd> {t("shortcuts.respond")}
           </p>
         </section>
 

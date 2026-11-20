@@ -25,7 +25,8 @@ def _limiter(limit: int) -> RateLimiter:
 
 class CopilotRequest(BaseModel):
     mode: Mode = "ask"
-    question: str | None = Field(default=None, max_length=1_000)
+    # Up to a few minutes of what Others said, for "Responder ao que falaram".
+    question: str | None = Field(default=None, max_length=4_000)
     transcript: list[ContextSegment] = Field(default_factory=list, max_length=500)
     tone: Tone = "natural"
     # Answer language; defaults to the meeting language.
@@ -115,7 +116,7 @@ async def copilot(
     if body.mode == "ask" and body.question:
         history.append((body.question, result.answer))
     elif body.mode == "reply":
-        history.append(("(how to reply to the latest question)", result.answer))
+        history.append((body.question or "(how to reply to the latest question)", result.answer))
     # Metering only (no prompt or answer content is stored).
     for kind, qty in (
         ("copilot_request", 1),

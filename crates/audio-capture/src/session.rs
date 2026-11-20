@@ -98,6 +98,10 @@ pub struct SessionOptions {
     pub reconnect: ReconnectPolicy,
     pub open_timeout: Duration,
     pub control_timeout: Duration,
+    /// Reopen the stream when no audio callback arrives for this long while capturing.
+    /// Catches devices that stop silently, e.g. AirPods switching to headset mode when a
+    /// meeting app turns on their microphone. `None` disables the watchdog.
+    pub stall_timeout: Option<Duration>,
 }
 
 impl Default for SessionOptions {
@@ -111,6 +115,7 @@ impl Default for SessionOptions {
             },
             open_timeout: Duration::from_secs(15),
             control_timeout: Duration::from_secs(2),
+            stall_timeout: Some(Duration::from_secs(4)),
         }
     }
 }
@@ -471,6 +476,7 @@ impl WorkerCtx {
             dropped_seen: 0,
         };
         let mut paused = false;
+        let mut last_audio = Instant::now();
 
         loop {
             let parked = pending.lock().ok().and_then(|mut slot| slot.take());
@@ -478,12 +484,28 @@ impl WorkerCtx {
                 Some(err) => WorkerMsg::Raw(RawMsg::Error(err)),
                 None => match rx.recv_timeout(Duration::from_millis(200)) {
                     Ok(m) => m,
-                    Err(RecvTimeoutError::Timeout) => continue,
+                    Err(RecvTimeoutError::Timeout) => {
+                        let stalled = self
+                            .options
+                            .stall_timeout
+                            .is_some_and(|limit| last_audio.elapsed() > limit);
+                        if stalled && !paused && stream.is_some() {
+                            log::warn!("{} delivered no audio: reopening", self.source);
+                            last_audio = Instant::now();
+                            WorkerMsg::Raw(RawMsg::Error(CaptureError::DeviceUnavailable {
+                                audio: self.source,
+                                detail: "the device stopped sending audio".into(),
+                            }))
+                        } else {
+                            continue;
+                        }
+                    }
                     Err(RecvTimeoutError::Disconnected) => break,
                 },
             };
             match msg {
                 WorkerMsg::Control(c) => {
+                    last_audio = Instant::now();
                     match self.handle_control(c, &mut stream, &mut p, &mut paused) {
                         Ok(Flow::Stop) => break,
                         Ok(Flow::Continue) => {}
@@ -497,6 +519,7 @@ impl WorkerCtx {
                     }
                 }
                 WorkerMsg::Raw(RawMsg::Audio { samples, format }) => {
+                    last_audio = Instant::now();
                     if paused || self.gate_closed.load(Ordering::SeqCst) || stream.is_none() {
                         continue; // discard audio captured around a pause
                     }
@@ -519,6 +542,7 @@ impl WorkerCtx {
                     match self.reconnect(&rx, &dropped, &pending, &mut paused, err) {
                         Ok(Some(s)) => {
                             stream = Some(s);
+                            last_audio = Instant::now();
                             p.gap_pending = true;
                             p.framer.clear();
                         }

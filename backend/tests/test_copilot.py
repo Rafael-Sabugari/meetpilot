@@ -500,3 +500,22 @@ def test_prompt_sizes_answers_to_the_question() -> None:
     assert "5-8 sentences" in rules and "answer every part" in rules
     assert "rapidinho" in rules and "first 2 sentences" in rules
     assert "explica melhor" in rules
+
+
+def test_reply_can_target_what_others_said_and_scenarios_are_hypothetical(
+    app_client: TestClient, llm: FakeLLMProvider
+) -> None:
+    from app.ai.copilot import instructions
+
+    auth = register_and_login(app_client)
+    mid = app_client.post("/api/v1/meetings", json={"language": "en"}, headers=auth).json()[
+        "meeting"
+    ]["id"]
+    said = "So what do the logs say when it fails? " * 40
+    body = {"mode": "reply", "question": said, "transcript": TRANSCRIPT}
+    r = app_client.post(f"/api/v1/meetings/{mid}/copilot", json=body, headers=auth)
+    assert r.status_code == 200, r.text
+    sent = llm.calls[-1]["input_text"]
+    assert "in reply to what Others just said" in sent and "what do the logs say" in sent
+    rules = instructions("en", "natural")
+    assert "never answer that you don't have the error" in rules
