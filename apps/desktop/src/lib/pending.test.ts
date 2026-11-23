@@ -28,6 +28,8 @@ describe("pendingFromOthers", () => {
     const after = pendingFromOthers(state, "s-1");
     expect(after.text).toBe("Tell me about your last project. And the team size?");
     const none = pendingFromOthers({ ...state, partials: {} }, "s-3");
-    expect(none).toEqual({ text: "", count: 0, lastId: "s-3" });
+    expect(none).toEqual({ text: "", translation: "", count: 0, lastId: "s-3" });
+    const tr = pendingFromOthers({ ...state, translations: { "s-2": "Me fala do", "s-3": "seu último projeto." } }, "s-1");
+    expect(tr.translation).toBe("Me fala do seu último projeto.");
   });
 });

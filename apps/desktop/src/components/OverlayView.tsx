@@ -117,6 +117,13 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
             )}
             <OverlayTone t={t} tone={prefs.tone} onChange={setTone} />
           </div>
+          {live && pending.text && (
+            <PendingSpeech
+              t={t}
+              text={pending.text}
+              translation={prefs.translationView !== "original" ? pending.translation : ""}
+            />
+          )}
           <OverlayAnswers t={t} items={items} />
         </div>
       )}
@@ -172,5 +179,18 @@ export function OverlayTone(props: {
         ))}
       </select>
     </label>
+  );
+}
+
+/** What the others said since the last send, as one running text, until the user sends it. */
+export function PendingSpeech(props: { t: (k: MessageKey) => string; text: string; translation: string }) {
+  const { t, text, translation } = props;
+  return (
+    <div className="overlay__pending" data-no-drag data-testid="pending-speech">
+      <p className="answer__q">
+        <span className="pill pill--accent">{t("overlay.pending")}</span> {text}
+      </p>
+      {translation && <p className="answer__tr">{translation}</p>}
+    </div>
   );
 }

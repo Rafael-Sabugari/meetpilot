@@ -155,3 +155,5 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 
 .answer__text--writing::after { content: "▍"; margin-left: 2px; opacity: 0.6; animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
+
+.overlay__pending { display: grid; gap: 4px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; max-height: 30vh; overflow-y: auto; flex: none; user-select: text; }

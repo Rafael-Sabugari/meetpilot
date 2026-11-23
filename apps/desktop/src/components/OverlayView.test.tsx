@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { OverlayAnswers, OverlayTone } from "./OverlayView";
+import { OverlayAnswers, OverlayTone, PendingSpeech } from "./OverlayView";
 import type { CopilotItem } from "../lib/copilot";
 import { makeT } from "../lib/i18n";
 
@@ -63,5 +63,15 @@ describe("OverlayTone", () => {
     expect(sel.value).toBe("natural");
     fireEvent.change(sel, { target: { value: "concise" } });
     expect(picked).toEqual(["concise"]);
+  });
+});
+
+describe("PendingSpeech", () => {
+  it("shows what they said so far as one text, with its translation", () => {
+    render(<PendingSpeech t={t} text="Tell me about your last project." translation="Me fala do seu último projeto." />);
+    const box = screen.getByTestId("pending-speech");
+    expect(box.textContent).toContain("Falaram (ainda não enviado)");
+    expect(box.textContent).toContain("Tell me about your last project.");
+    expect(box.textContent).toContain("Me fala do seu último projeto.");
   });
 });
