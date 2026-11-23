@@ -522,6 +522,7 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
             meeting_language=meeting.language,
             context=active.context_for(meeting.id),
             history=active.history_for(meeting.id),
+            id_prefix=meeting.id[:8],
             copilot_remaining=settings.copilot_requests_per_month - int(copilot_used),
             max_context_chars=settings.copilot_max_context_chars,
             max_output_tokens=settings.copilot_max_output_tokens,

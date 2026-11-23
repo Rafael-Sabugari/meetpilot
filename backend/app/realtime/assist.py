@@ -78,6 +78,7 @@ class LiveAssist:
         copilot_remaining: int,
         answer_llm: LLMProvider | None = None,
         history: deque[tuple[str, str]] | None = None,
+        id_prefix: str = "",
         max_context_chars: int,
         max_output_tokens: int,
         policy: AutoAnswerPolicy | None = None,
@@ -89,6 +90,8 @@ class LiveAssist:
         self.llm = llm
         self.answer_llm = answer_llm or llm
         self._requests = 0
+        # Segment ids restart with each meeting; the prefix keeps question ids unique.
+        self.id_prefix = f"{id_prefix}-" if id_prefix else ""
         self._last_request = float("-inf")
         self.meeting_language = meeting_language
         self.context = context
@@ -174,7 +177,7 @@ class LiveAssist:
         if self.policy.is_repeat(text, self.clock()):
             return  # same question again (re-transcribed or rephrased): already handled
         # Derived from the segment id, which stays unique across reconnects.
-        qid = f"q-{seg.segment_id}"
+        qid = f"q-{self.id_prefix}{seg.segment_id}"
         self._question_ids[text] = qid
         while len(self._question_ids) > 50:
             self._question_ids.pop(next(iter(self._question_ids)))
@@ -268,7 +271,7 @@ class LiveAssist:
             return  # empty, or a double press
         self._last_request = now
         self._requests += 1
-        self._spawn(self._answer(f"r-{self._requests}", text, requested=True))
+        self._spawn(self._answer(f"r-{uuid.uuid4().hex[:12]}", text, requested=True))
 
     async def _answer(self, qid: str, question: str, *, requested: bool = False) -> None:
         try:

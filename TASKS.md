@@ -207,3 +207,4 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] cenários de entrevista tratados como hipotéticos: nunca "não tenho o erro/log aqui", e sim o que procuraria e o que cada mensagem indicaria
 - [x] watchdog da captura: se o dispositivo para de mandar áudio por 4 s (ex.: AirPods trocando para modo headset), a captura é reaberta sozinha (conta em "reconexões")
 - [x] "Responder ao que falaram" pela sessão ao vivo (`copilot.request` no WebSocket): resposta em streaming como as automáticas (texto em ~2–3 s, tradução no Haiku depois) e o que os outros falaram aparece em cima da resposta ("Falaram")
+- [x] ordem das respostas: ids únicos por reunião/pedido (`q-<reunião>-<segmento>`, `r-<uuid>`) e um pedido novo sempre vai para o topo (antes reaproveitava um card antigo com o mesmo id e aparecia no meio)

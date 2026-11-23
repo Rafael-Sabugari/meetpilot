@@ -214,7 +214,8 @@ def test_user_can_ask_for_a_reply_to_what_others_said(tmp_path: Path) -> None:
             ],
         )
         started = of(events, "answer.started")
-        assert [s["question_id"] for s in started] == ["r-1"], "auto off, double press ignored"
+        assert len(started) == 1, "auto off, double press ignored"
+        assert started[0]["question_id"].startswith("r-")
         assert started[0]["question"] == "Tell me about your last project."
         assert of(events, "answer.delta") and of(events, "answer.completed")
         assert of(events, "answer.translated")

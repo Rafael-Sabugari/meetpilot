@@ -49,9 +49,15 @@ export function copilotReducer(state: CopilotState, action: CopilotAction): Copi
     case "clear":
       return emptyCopilot;
     case "pending": {
-      if (state.items.some((i) => i.id === action.id)) return state;
+      // Already waiting for this one (e.g. re-sent after a reconnect): keep it where it is.
+      // Local requests ("m-…") are unique per window: a late pending after the answer is stale.
+      if (state.items.some((i) => i.id === action.id && (i.status === "pending" || i.id.startsWith("m-")))) {
+        return state;
+      }
+      // A new request always goes on top, even if an old finished card had the same id.
       const item: CopilotItem = { id: action.id, mode: action.mode, question: action.question, status: "pending" };
-      return { items: [item, ...state.items].slice(0, MAX_ITEMS) };
+      const rest = state.items.filter((i) => i.id !== action.id);
+      return { items: [item, ...rest].slice(0, MAX_ITEMS) };
     }
     case "failed": {
       if (!state.items.some((i) => i.id === action.id)) {

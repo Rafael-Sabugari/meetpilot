@@ -97,6 +97,19 @@ describe("automatic suggestions from the realtime stream", () => {
     expect(s.items[0]).toMatchObject({ mode: "reply", status: "done" });
   });
 
+  it("a new question with an old id goes on top instead of reusing the old card", () => {
+    const start = (id: string, question: string, seq: number) => ({ kind: "server" as const, envelope: env("answer.started", { question_id: id, question }, seq) });
+    const finish = (id: string, question: string, seq: number) => ({ kind: "server" as const, envelope: env("answer.completed", { question_id: id, question, ...answer }, seq) });
+    let s = copilotReducer(emptyCopilot, start("r-1", "First?", 1));
+    s = copilotReducer(s, finish("r-1", "First?", 2));
+    s = copilotReducer(s, start("q-2", "Second?", 3));
+    s = copilotReducer(s, finish("q-2", "Second?", 4));
+    s = copilotReducer(s, start("r-1", "Third?", 5));
+    expect(s.items.map((i) => i.question)).toEqual(["Third?", "Second?"]);
+    s = copilotReducer(s, finish("r-1", "Third?", 6));
+    expect(s.items.map((i) => i.question)).toEqual(["Third?", "Second?"]);
+  });
+
   it("shows failures even without a pending item (quota)", () => {
     const s = copilotReducer(emptyCopilot, {
       kind: "server",
