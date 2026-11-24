@@ -30,7 +30,9 @@ pub struct SegmenterConfig {
 impl Default for SegmenterConfig {
     fn default() -> Self {
         Self {
-            threshold_dbfs: -45.0,
+            // Low enough for a meeting played at low volume; the adaptive noise floor
+            // (+ margin) still keeps steady background noise from counting as speech.
+            threshold_dbfs: -58.0,
             noise_margin_db: 10.0,
             end_silence_ms: 500,
             max_utterance_ms: 15_000,
@@ -317,6 +319,19 @@ mod tests {
         // hum alone must not keep producing speech.
         let late = out.iter().filter(|u| u.start_seq > 200).count();
         assert_eq!(late, 0, "steady background noise is not speech");
+    }
+
+    #[test]
+    fn quiet_meeting_audio_still_counts_as_speech() {
+        let mut s = Segmenter::new(SegmenterConfig::default());
+        // Digital silence, then speech played at a low volume (-52 dBFS).
+        let (_, seq) = run(&mut s, (0..100).map(|_| silence()), 0);
+        let (out, seq) = run(&mut s, (seq..seq + 150).map(|i| tone(-52.0, i)), seq);
+        let (end, _) = run(&mut s, (seq..seq + 40).map(|_| silence()), seq);
+        assert!(
+            out.iter().chain(end.iter()).any(|u| u.is_final),
+            "quiet speech must still produce an utterance"
+        );
     }
 
     #[test]

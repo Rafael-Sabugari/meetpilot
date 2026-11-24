@@ -212,3 +212,4 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] captura reabre sozinha quando o dispositivo ou o formato muda (ex.: AirPods entram em modo headset e mudam a taxa de amostragem; saída padrão trocada) — `route_signature` + checagem a cada 2 s
 - [x] filtro de lixo: fragmentos com hífen solto ("Transd-als »-Pass-lo-") e letras soltas ("t", "p", "D")
 - [x] respostas com cara de fala: frases curtas, contrações, sem dois-pontos/parênteses/listas longas, sem recitar códigos de erro, sem definição de livro
+- [x] Whisper com reunião em volume baixo: limiar mínimo de fala −45 → −58 dBFS (o piso de ruído adaptativo segue barrando ruído constante) e normalização do áudio de cada fala antes do Whisper (até +30 dB)

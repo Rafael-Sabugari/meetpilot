@@ -313,6 +313,7 @@ fn run_worker(shared: &Shared, factory: RecognizerFactory) {
         if audio.len() < 16_000 {
             audio.resize(16_000, 0.0);
         }
+        normalize(&mut audio);
         let started = Instant::now();
         match recognizer.transcribe(&audio, &language) {
             Ok(raw) => {
@@ -339,9 +340,35 @@ fn run_worker(shared: &Shared, factory: RecognizerFactory) {
     }
 }
 
+/// Bring quiet speech (a meeting played at low volume) up to a level Whisper handles well.
+/// Peak-normalised to about -6 dBFS, with at most +30 dB of gain; loud audio is untouched.
+pub fn normalize(audio: &mut [f32]) {
+    let peak = audio.iter().fold(0f32, |m, s| m.max(s.abs()));
+    if peak <= 1e-6 || peak >= 0.5 {
+        return;
+    }
+    let gain = (0.5 / peak).min(31.6);
+    for s in audio.iter_mut() {
+        *s *= gain;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quiet_audio_is_brought_up_and_loud_audio_left_alone() {
+        let mut quiet = vec![0.01, -0.02, 0.005];
+        normalize(&mut quiet);
+        assert!((quiet[1].abs() - 0.5).abs() < 1e-4);
+        let mut whisper_quiet = vec![0.000_1, -0.000_2];
+        normalize(&mut whisper_quiet);
+        assert!(whisper_quiet[1].abs() < 0.01, "gain is capped at +30 dB");
+        let mut loud = vec![0.8, -0.6];
+        normalize(&mut loud);
+        assert_eq!(loud, vec![0.8, -0.6]);
+    }
     use std::sync::atomic::AtomicUsize;
 
     /// Reports the audio length it was given; optionally slow.
