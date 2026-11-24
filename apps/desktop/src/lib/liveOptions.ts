@@ -12,6 +12,8 @@ export const DEFAULT_LIVE: LivePrefs = {
   tone: "natural",
   translateTo: null,
   userContext: null,
+  remember: false,
+  useMemory: true,
   translationView: "both",
 };
 
@@ -38,6 +40,8 @@ export function parseLivePrefs(raw: string | null): LivePrefs {
       typeof v.userContext === "string" && v.userContext.trim()
         ? v.userContext.slice(0, MAX_USER_CONTEXT)
         : null,
+    remember: v.remember === true,
+    useMemory: v.useMemory !== false,
     translationView: pick(v.translationView, VIEWS, DEFAULT_LIVE.translationView),
   };
 }
@@ -65,5 +69,7 @@ export function toLiveOptions(p: LivePrefs): LiveOptions {
     tone: p.tone,
     translateTo: p.translateTo,
     userContext: p.userContext?.trim() ? p.userContext.trim().slice(0, MAX_USER_CONTEXT) : null,
+    remember: p.remember,
+    useMemory: p.useMemory,
   };
 }

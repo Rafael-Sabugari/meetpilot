@@ -282,3 +282,17 @@ Every suggestion (automatic or "Como respondo?") sees the whole meeting transcri
 `copilot_max_context_chars` (60k chars, about one hour; oldest lines drop first) plus the last 12
 question/suggestion pairs of the meeting (`ActiveStreams.suggestions`, memory only, cleared when the
 meeting ends). Anthropic prompt caching marks the instructions and the user's context as cacheable.
+
+
+### Second brain (2026-11-24)
+
+- **What is stored:** only what the user chose to keep, in the `memories` table on their own server.
+  - Meeting summaries: opt-in per meeting. They are written once, when the meeting is finished, from the in-memory live context, which is then forgotten.
+  - Notes the user writes or imports.
+  - Audio and raw transcripts are never stored.
+- **Search** (`app/brain/search.py`): runs locally with BM25 over paragraph-aligned passages, accent folding and a small recency boost. It returns the top passages as `<memory id date title>` blocks. A personal brain is small (hundreds of memories), so this takes milliseconds and needs no embeddings provider.
+- **Use in live answers:** the gateway loads the user's memories once per stream. Each suggestion adds only clear matches: at least two different query words, or one that is in the memory's title. These are capped at 4 passages and 8k chars, placed after `<user_context>` so the cached prompt prefix is unchanged. Prompt rule 14 makes them true facts about the user, with "Meu contexto" winning on conflicts and newer memories over older ones.
+- **Models:**
+  - Summaries, answers and briefings use the answer model (Sonnet).
+  - One summary costs about one live suggestion.
+  - Asking the brain costs about US$0.01 per question with Sonnet.

@@ -46,6 +46,27 @@ export function LiveAssistOptions(props: {
         </select>
       </label>
       {prefs.autoSuggestions !== "off" && <p className="muted small">{t("live.auto.hint")}</p>}
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={prefs.remember}
+          disabled={disabled}
+          onChange={(e) => onChange({ ...prefs, remember: e.target.checked })}
+          data-testid="remember-toggle"
+        />
+        {t("live.remember")}
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={prefs.useMemory}
+          disabled={disabled}
+          onChange={(e) => onChange({ ...prefs, useMemory: e.target.checked })}
+          data-testid="memory-toggle"
+        />
+        {t("live.useMemory")}
+      </label>
+      {prefs.remember && <p className="muted small">{t("live.remember.hint")}</p>}
     </div>
   );
 }

@@ -17,6 +17,7 @@ from app.ai.router import router as copilot_router
 from app.api.v1 import health
 from app.auth.router import router as auth_router
 from app.auth.security import TokenService
+from app.brain.router import router as brain_router
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.base import Base
@@ -113,6 +114,7 @@ def create_app(
         usage_router,
         realtime_router,
         copilot_router,
+        brain_router,
     ):
         app.include_router(r, prefix="/api/v1")
     return app

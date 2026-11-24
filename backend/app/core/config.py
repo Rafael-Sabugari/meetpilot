@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     # Optional stronger model just for suggested answers (question checks and live
     # translation stay on anthropic_model). Empty = same as anthropic_model.
     anthropic_answer_model: str = ""
-    anthropic_timeout_seconds: float = 30.0
+    # Long enough for an end-of-meeting summary (one big non-streamed call).
+    anthropic_timeout_seconds: float = 90.0
     openai_api_key: SecretStr | None = None
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-5-mini"

@@ -2,10 +2,10 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TimestampMixin, new_id
+from app.db.base import Base, TimestampMixin, new_id, utcnow
 
 
 class User(TimestampMixin, Base):
@@ -69,3 +69,26 @@ class RefreshToken(TimestampMixin, Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Memory(TimestampMixin, Base):
+    """Second brain: what the User chose to remember. A meeting summary (opt-in per meeting,
+    never audio or the raw transcript) or a note the User wrote or imported."""
+
+    __tablename__ = "memories"
+    __table_args__ = (Index("ix_memories_user_occurred", "user_id", "occurred_at"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    meeting_id: Mapped[str | None] = mapped_column(
+        ForeignKey("meetings.id", ondelete="SET NULL"), nullable=True
+    )
+    kind: Mapped[str] = mapped_column(String(16))  # meeting | note
+    status: Mapped[str] = mapped_column(String(16), default="ready")  # processing|ready|failed
+    title: Mapped[str] = mapped_column(String(200))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    # Markdown body: topics, decisions, action items... (meetings) or the note itself.
+    details: Mapped[str] = mapped_column(Text, default="")
+    # JSON list of facts about the User worth adding to "My context" (meetings only).
+    suggestions: Mapped[str] = mapped_column(Text, default="[]")

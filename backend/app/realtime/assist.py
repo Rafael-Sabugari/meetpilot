@@ -16,7 +16,7 @@ import logging
 import time
 import uuid
 from collections import deque
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -27,6 +27,8 @@ from app.ai.copilot import Tone, ask, translate_answer
 from app.ai.question_check import check as check_question
 from app.ai.questions import AutoAnswerPolicy, AutoMode, assess, should_answer, worth_checking
 from app.ai.translation import needs_translation, same_text, translate
+from app.brain.search import MemoryDoc, render
+from app.brain.service import relevant_for_meeting
 from app.providers.llm.base import LLMError, LLMProvider, LLMResult
 from app.realtime.events import EventType, TranscriptSegment
 
@@ -37,6 +39,8 @@ Emit = Callable[[EventType, dict[str, Any]], Awaitable[None]]
 
 # What Others said, sent with "Responder ao que falaram".
 MAX_REQUEST_CHARS = 4_000
+# Second-brain passages added to a live answer (about 2k tokens at most).
+MAX_LIVE_MEMORY_CHARS = 8_000
 
 
 class LiveSettings(BaseModel):
@@ -47,6 +51,10 @@ class LiveSettings(BaseModel):
     translate_to: Literal["pt-BR", "en"] | None = None
     # Written by the user about themselves and the meeting (kept in memory only).
     user_context: str | None = Field(default=None, max_length=60_000)
+    # Second brain: save a summary of this meeting when it ends (opt-in), and let answers
+    # use what was remembered from earlier meetings and notes.
+    remember: bool = False
+    use_memory: bool = True
 
     @field_validator("user_context")
     @classmethod
@@ -84,7 +92,11 @@ class LiveAssist:
         policy: AutoAnswerPolicy | None = None,
         clock: Callable[[], float] = time.monotonic,
         utterance_gap: float = 1.5,
+        memory: Sequence[MemoryDoc] = (),
+        on_settings: Callable[[LiveSettings], None] | None = None,
     ) -> None:
+        self.memory = list(memory)
+        self.on_settings = on_settings
         self.utterance_gap = utterance_gap
         self.emit = emit
         self.llm = llm
@@ -123,6 +135,16 @@ class LiveAssist:
     def update_settings(self, raw: dict[str, Any]) -> None:
         data = {k: v for k, v in raw.items() if k != "type"}
         self.settings = LiveSettings.model_validate(data)
+        if self.on_settings is not None:
+            self.on_settings(self.settings)
+
+    def memory_for(self, question: str) -> str | None:
+        """Earlier meetings and notes that clearly relate to this question (or None)."""
+        if not self.settings.use_memory or not self.memory:
+            return None
+        recent = " ".join(s.text for s in list(self.context)[-3:])
+        hits = relevant_for_meeting(self.memory, f"{question} {question} {recent}")
+        return render(hits, MAX_LIVE_MEMORY_CHARS) or None
 
     # -- inputs -------------------------------------------------------------------------
 
@@ -317,6 +339,7 @@ class LiveAssist:
                     max_output_tokens=self.max_output_tokens,
                     user_context=self.settings.user_context,
                     earlier=list(self.history),
+                    memory=self.memory_for(question),
                     on_partial=partial,
                 )
             except LLMError as e:

@@ -210,6 +210,16 @@ pub struct LiveOptions {
     /// is transcribed. Never logged.
     #[serde(default, rename(serialize = "user_context"))]
     pub user_context: Option<String>,
+    /// Second brain: save a summary of this meeting when it ends (opt-in, never audio).
+    #[serde(default)]
+    pub remember: bool,
+    /// Second brain: let answers use memories of earlier meetings and notes.
+    #[serde(default = "yes", rename(serialize = "use_memory"))]
+    pub use_memory: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 /// Same limit as the server (`LiveSettings.user_context`).
@@ -740,7 +750,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             o.to_server(),
-            serde_json::json!({"auto_suggestions":"directed","tone":"formal","translate_to":"en","user_context":null})
+            serde_json::json!({"auto_suggestions":"directed","tone":"formal","translate_to":"en","user_context":null,"remember":false,"use_memory":true})
         );
         assert!(
             o.to_server()["user_context"].is_null(),

@@ -314,6 +314,38 @@ impl ApiClient {
         self.send(req).await
     }
 
+    /// Second brain (`/api/v1/brain/...`). `path` is relative to `api/v1/` and has already
+    /// been checked by the caller.
+    pub async fn brain(
+        &self,
+        access: &str,
+        method: &str,
+        path: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value, ApiError> {
+        let method = match method {
+            "GET" => reqwest::Method::GET,
+            "POST" => reqwest::Method::POST,
+            "PATCH" => reqwest::Method::PATCH,
+            "DELETE" => reqwest::Method::DELETE,
+            other => {
+                return Err(ApiError::Network {
+                    detail: format!("unsupported method {other}"),
+                })
+            }
+        };
+        let mut req = self
+            .http
+            .request(method, self.url(&format!("api/v1/{path}")))
+            .bearer_auth(access)
+            // Answers from the brain read many memories; allow a slow model.
+            .timeout(std::time::Duration::from_secs(90));
+        if let Some(b) = body {
+            req = req.json(b);
+        }
+        self.send(req).await
+    }
+
     pub async fn finish_meeting(&self, access: &str, meeting_id: &str) -> Result<(), ApiError> {
         let req = self
             .http

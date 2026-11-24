@@ -142,3 +142,26 @@ Audio received while paused is ignored (never forwarded or billed).
 ### Streaming suggestions (2026-11-19)
 - `answer.delta` `{question_id, text}`: the automatic suggestion written so far (full text; grows until `answer.completed`).
 - `answer.translated` `{question_id, answer_translation}`: the suggestion in the other language (pt-BR ↔ en), sent right after `answer.completed` (which now carries `answer_translation: null`) when live translation is on.
+
+
+## 4. Second brain — `/api/v1/brain` ✅ (2026-11-24)
+
+Memories are summaries of meetings the user chose to remember, plus notes. Each memory belongs to one user; a memory of another user returns 404. Desktop access goes through the Tauri command `brain_request {method, path, body}`, which only allows `brain/...` paths.
+
+| Method | Path | Body / query | Result |
+|---|---|---|---|
+| GET | `/brain/memories` | `q?` (search), `limit?` (≤ 500) | `MemoryOut[]`, newest first, or best match first with `q` |
+| POST | `/brain/memories` | `{title, text (≤ 60k), occurred_at?}` | note `MemoryOut` (201) |
+| GET | `/brain/memories/{id}` | | `MemoryOut` |
+| PATCH | `/brain/memories/{id}` | `{title?, summary?, details?, suggestions?}` | `MemoryOut` |
+| DELETE | `/brain/memories/{id}` | | 204 |
+| POST | `/brain/ask` | `{question (≤ 2000), history?: [{role: user\|brain, text}], user_context?}` | `{answer, sources: [{id,title,kind,occurred_at}], input_tokens, output_tokens}` |
+| POST | `/brain/briefing` | `{topic (≤ 1000), user_context?}` | same as `/ask` |
+
+`MemoryOut` = `{id, kind: meeting|note, status: processing|ready|failed, title, occurred_at, meeting_id, summary, details (Markdown), suggestions: string[]}`.
+
+The ask and briefing endpoints are limited to 20 requests per minute per user.
+
+**Meeting memory:** `POST /meetings/{id}/finish` accepts an optional `{remember: bool}`. Without a body, the server uses the `remember` value from the meeting's last `copilot.settings`. When remember is on and something was transcribed, the response includes `memory_id`. The memory starts as `processing`, and the summary is written after the response.
+
+**Settings:** `copilot.settings` (WebSocket) adds `remember` (default false) and `use_memory` (default true). `POST /meetings/{id}/copilot` adds `use_memory` (default true).

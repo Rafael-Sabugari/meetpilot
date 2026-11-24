@@ -98,6 +98,10 @@ export interface LiveOptions {
   translateTo: TranslateTo | null;
   /** Written by the user about themselves and the meeting; kept on this computer. */
   userContext: string | null;
+  /** Second brain: save a summary of this meeting when it ends (never audio). */
+  remember: boolean;
+  /** Second brain: let answers use memories of earlier meetings and notes. */
+  useMemory: boolean;
 }
 
 /** `question.detected`: someone else asked a question (directed = aimed at the user). */

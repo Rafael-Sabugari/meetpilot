@@ -1,6 +1,26 @@
 # TASKS
 
-Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
+Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
+
+## ✅ Completed — Second brain (2026-11-24)
+
+- ✅ Phase 1, meeting memory: "Lembrar desta reunião" option (opt-in per meeting, sent with the live settings). When the meeting is finished, the server writes **one summary** (title, summary, topics, decisions, next steps, people, open questions) with the answer model, after the response. Only the summary is stored (`memories` table, Alembic `7c1e2b9d4a10`), never audio or the transcript.
+- ✅ Phase 2, ask the brain: `POST /brain/ask` answers only from memories plus "Meu contexto", cites the memories it used, and follows the conversation. The app has a "Segundo cérebro" card (Perguntar / Preparar reunião / Memórias / Nova nota).
+- ✅ Phase 3, copilot memory: live and manual suggestions get the 4 clearest matching passages (`<memory>`, ≤ 8k chars, after the cached `<user_context>`). Prompt rule 14 covers this. It can be turned off with "Usar meu segundo cérebro nas sugestões".
+- ✅ Phase 4, before and after a meeting:
+  - `POST /brain/briefing` gives a one-minute briefing: history, commitments, open items and points to raise.
+  - Each meeting memory suggests facts the user said about themselves, with an "Adicionar ao Meu contexto" button.
+- ✅ Phase 5, other sources: notes typed in the app or imported from text files (.txt/.md/.csv/.json/.html, ≤ 2 MB), each up to 60k chars.
+- ✅ Search runs locally on the server: BM25 over passages of about 1.2k chars, accent-insensitive, PT/EN stopwords, a small recency boost. No embeddings and no extra provider.
+- ✅ Security: the desktop calls only `brain/...` paths through a whitelisted Tauri command (`brain_request`). Memories are per user (404 for others). Usage is metered as `brain_memory`, `brain_request` and `brain_briefing`.
+- ✅ Real Sonnet run:
+  - Interview summary in 6 s (1.9k in / 1k out).
+  - Faithful answers citing the memory (2 s).
+  - A useful briefing (4 s).
+- ✅ Tests: backend +12 (search, API, isolation, live use, remember/not remember); Rust +1; frontend +7 (96).
+- ⏭ Optional: send memories to Mem as well. Mem's API needs the paid Mem Pro plan; it is not done.
+- ⏭ Optional: calendar-based briefings.
+- Note: `MEETPILOT_ANTHROPIC_TIMEOUT_SECONDS` default 30 → 90 s, so a long meeting summary (one non-streamed call) does not time out.
 
 ## ✅ Completed — Free transcription with Whisper on the Mac (2026-11-16)
 

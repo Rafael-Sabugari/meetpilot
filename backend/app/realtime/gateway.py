@@ -31,6 +31,7 @@ from app.ai.context import ContextSegment
 from app.ai.copilot import MAX_EARLIER
 from app.ai.questions import AutoAnswerPolicy
 from app.auth.security import TokenError, TokenService
+from app.brain.service import load_docs
 from app.core.config import Settings
 from app.db.models import Meeting, UsageRecord, User
 from app.providers.llm.base import LLMProvider
@@ -103,9 +104,11 @@ class ActiveStreams:
         self.contexts: dict[str, deque[ContextSegment]] = {}
         # Question/suggestion pairs per meeting, so follow-ups stay consistent (memory only).
         self.suggestions: dict[str, deque[tuple[str, str]]] = {}
+        # "Remember this meeting" as last set by the User (second brain, opt-in per meeting).
+        self.remember: dict[str, bool] = {}
 
     def context_for(self, meeting_id: str) -> "deque[ContextSegment]":
-        return self.contexts.setdefault(meeting_id, deque(maxlen=1000))
+        return self.contexts.setdefault(meeting_id, deque(maxlen=4000))
 
     def history_for(self, meeting_id: str) -> "deque[tuple[str, str]]":
         return self.suggestions.setdefault(meeting_id, deque(maxlen=MAX_EARLIER))
@@ -113,6 +116,7 @@ class ActiveStreams:
     def forget(self, meeting_id: str) -> None:
         self.contexts.pop(meeting_id, None)
         self.suggestions.pop(meeting_id, None)
+        self.remember.pop(meeting_id, None)
 
     def acquire(self, user_id: str, limit: int) -> bool:
         if self._counts.get(user_id, 0) >= limit:
@@ -511,6 +515,8 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
             return
         usage = await summary(db, settings, user)
         copilot_used = await count_this_period(db, user, "copilot_request")
+        # Second brain: memories the live answers may draw on (searched locally per answer).
+        memory_docs = await load_docs(db, user.id)
 
     local = first.get("stt") == "local"
     if usage.remaining_seconds <= 0 and not local:
@@ -551,6 +557,8 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
                 max_per_minute=settings.copilot_auto_max_per_minute,
             ),
             utterance_gap=settings.copilot_utterance_gap_seconds,
+            memory=memory_docs,
+            on_settings=lambda s: active.remember.__setitem__(meeting.id, s.remember),
         ),
     )
     try:

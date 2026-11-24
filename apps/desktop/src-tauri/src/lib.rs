@@ -6,6 +6,7 @@
 //! meeting links, invitations or meeting-provider APIs.
 
 mod account;
+mod brain;
 mod capture;
 mod copilot;
 mod local;
@@ -110,6 +111,7 @@ pub fn run() {
             local::local_cancel_download,
             local::local_delete_model,
             copilot::ask_copilot,
+            brain::brain_request,
         ])
         .run(tauri::generate_context!())
         .expect("error while running MeetPilot");

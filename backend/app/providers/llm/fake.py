@@ -1,5 +1,6 @@
 """Deterministic local LLM for development and tests. Clearly labelled; not real AI."""
 
+import re
 from typing import Any
 
 from app.providers.llm.base import LLMError, LLMResult, PartialCallback
@@ -40,6 +41,35 @@ class FakeLLMProvider:
                 data={"translation": f"(tradução de teste) {text[:120]}"},
                 input_tokens=max(1, len(input_text) // 4),
                 output_tokens=max(1, len(text) // 4),
+                model="fake",
+            )
+        if schema_name == "meeting_memory":
+            lines = input_text.split("<transcript>\n", 1)[-1].split("\n</transcript>")[0]
+            first = lines.strip().splitlines()[0] if lines.strip() else ""
+            return LLMResult(
+                data={
+                    "title": "Reunião de teste",
+                    "summary": f"(fake LLM) Resumo da reunião. {first[:200]}",
+                    "topics": ["assunto de teste"],
+                    "decisions": [],
+                    "action_items": ["Você: enviar o material"],
+                    "people": [],
+                    "open_questions": [],
+                    "context_suggestions": ["(fake LLM) fato sobre você"],
+                },
+                input_tokens=max(1, len(input_text) // 4),
+                output_tokens=80,
+                model="fake",
+            )
+        if schema_name == "brain_answer":
+            asked = re.search(r"<(question|topic)>\n(.*?)\n</\1>", input_text, re.S)
+            return LLMResult(
+                data={
+                    "answer": f"(fake LLM) {asked.group(2)[:120] if asked else ''}",
+                    "sources": re.findall(r'<memory id="([^"]+)"', input_text)[:3],
+                },
+                input_tokens=max(1, len(input_text) // 4),
+                output_tokens=40,
                 model="fake",
             )
         if schema_name == "question_check":

@@ -11,6 +11,7 @@ import { useCopilot } from "../hooks/useCopilot";
 import { CopilotPanel } from "./CopilotPanel";
 import { LiveAssistOptions } from "./LiveAssistOptions";
 import { UserContextCard } from "./UserContextCard";
+import { BrainPanel } from "./BrainPanel";
 import { TranscriptionEngine, pickModel } from "./TranscriptionEngine";
 import { useLocalModels } from "../hooks/useLocalModels";
 import type { SttEngine } from "../lib/api";
@@ -75,6 +76,8 @@ export function MainView({ t }: { t: T }) {
   }, [useSystem, useMic, systemDevice, micDevice, transcribe, language, protect, engine, localModelId]);
   const [showConsent, setShowConsent] = useState(false);
   const [live, setLive] = useState<LivePrefs>(loadLivePrefs);
+  // Bumped when a meeting ends so the second brain shows its new memory.
+  const [brainKey, setBrainKey] = useState(0);
   // Pick up changes made in the overlay window (e.g. the tone).
   useEffect(() => {
     const onStorage = () => setLive(loadLivePrefs());
@@ -121,6 +124,7 @@ export function MainView({ t }: { t: T }) {
   const onStop = async () => {
     await cap.stop();
     if (acct.account) acct.refreshUsage();
+    setBrainKey((k) => k + 1);
   };
   const toggleTranscribe = (on: boolean) => {
     if (on && !hasTranscriptionConsent()) {
@@ -137,7 +141,9 @@ export function MainView({ t }: { t: T }) {
       next.autoSuggestions !== live.autoSuggestions ||
       next.tone !== live.tone ||
       next.translateTo !== live.translateTo ||
-      next.userContext !== live.userContext;
+      next.userContext !== live.userContext ||
+      next.remember !== live.remember ||
+      next.useMemory !== live.useMemory;
     setLive(next);
     saveLivePrefs(next);
     // Mid-meeting changes apply immediately; otherwise they are sent when capture starts.
@@ -351,6 +357,16 @@ export function MainView({ t }: { t: T }) {
             tone={live.tone}
             onToneChange={(tone) => updateLive({ ...live, tone })}
             userContext={live.userContext}
+          />
+        )}
+
+        {acct.account && (
+          <BrainPanel
+            t={t}
+            locale={navigator.language}
+            userContext={live.userContext}
+            onUserContextChange={(userContext) => updateLive({ ...live, userContext })}
+            refreshKey={brainKey}
           />
         )}
 

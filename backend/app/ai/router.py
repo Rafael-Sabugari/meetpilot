@@ -7,6 +7,8 @@ from app.ai.context import ContextSegment, build_context
 from app.ai.copilot import Grounding, Mode, Tone, ask, translate_answer
 from app.auth.deps import DB, CurrentUser
 from app.auth.ratelimit import RateLimiter
+from app.brain.search import render
+from app.brain.service import load_docs, relevant_for_meeting
 from app.core.config import Settings
 from app.db.models import UsageRecord
 from app.meetings.router import owned_meeting
@@ -35,6 +37,8 @@ class CopilotRequest(BaseModel):
     user_context: str | None = Field(default=None, max_length=60_000)
     # Also return the answer translated into this language (the user's own), when different.
     translate_to: Literal["pt-BR", "en"] | None = None
+    # Second brain: let the answer use relevant memories (earlier meetings and notes).
+    use_memory: bool = True
 
     @model_validator(mode="after")
     def _question_for_ask(self) -> "CopilotRequest":
@@ -86,6 +90,12 @@ async def copilot(
     answer_language = body.language or (
         meeting.language if meeting.language in ("pt-BR", "en") else "auto"
     )
+    memory: str | None = None
+    if body.use_memory:
+        docs = await load_docs(db, user.id)
+        recent = " ".join(s.text for s in body.transcript[-3:])
+        query = f"{body.question or ''} {body.question or ''} {recent}"
+        memory = render(relevant_for_meeting(docs, query), 8_000) or None
     try:
         result = await ask(
             provider,
@@ -98,6 +108,7 @@ async def copilot(
             max_output_tokens=settings.copilot_max_output_tokens,
             user_context=body.user_context,
             earlier=list(history),
+            memory=memory,
         )
     except LLMError as e:
         code = status.HTTP_503_SERVICE_UNAVAILABLE if e.retryable else status.HTTP_502_BAD_GATEWAY

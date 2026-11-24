@@ -1,14 +1,15 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.auth.deps import DB, CurrentUser, tokens
 from app.auth.security import TokenService
+from app.brain.service import remember_meeting
 from app.db.base import utcnow
-from app.db.models import Meeting, User
+from app.db.models import Meeting, Memory, User
 from app.usage.service import summary
 
 router = APIRouter(tags=["meetings"])
@@ -31,6 +32,13 @@ class MeetingOut(BaseModel):
     created_at: datetime
     ended_at: datetime | None
     audio_seconds: float
+    # Second brain: the memory being written for this meeting, when the User asked for one.
+    memory_id: str | None = None
+
+
+class FinishRequest(BaseModel):
+    # None = use the "remember this meeting" option the desktop sent during the meeting.
+    remember: bool | None = None
 
 
 class StreamGrant(BaseModel):
@@ -120,16 +128,60 @@ async def get_meeting(meeting_id: str, user: CurrentUser, db: DB) -> MeetingOut:
 
 @router.post("/meetings/{meeting_id}/finish", response_model=MeetingOut)
 async def finish_meeting(
-    meeting_id: str, request: Request, user: CurrentUser, db: DB
+    meeting_id: str,
+    request: Request,
+    user: CurrentUser,
+    db: DB,
+    background: BackgroundTasks,
+    body: FinishRequest | None = None,
 ) -> MeetingOut:
     m = await owned_meeting(db, meeting_id, user)
     if m.status != "finished":
         m.status = "finished"
         m.ended_at = utcnow()
         await db.commit()
+    active = request.app.state.active_streams
+    remember = (
+        body.remember
+        if body is not None and body.remember is not None
+        else active.remember.get(m.id, False)
+    )
+    segments = [s for s in active.contexts.get(m.id, ()) if s.text.strip()]
+    questions = [q for q, _ in active.suggestions.get(m.id, ())]
     # Forget the live-assistance context held in memory for this meeting.
-    request.app.state.active_streams.forget(m.id)
-    return _out(m)
+    active.forget(m.id)
+    out = _out(m)
+    if remember and segments:
+        existing = await db.execute(select(Memory.id).where(Memory.meeting_id == m.id))
+        if existing.first() is None:
+            # Only a summary is kept (written after this response); never audio or the
+            # transcript itself.
+            memory = Memory(
+                user_id=user.id,
+                meeting_id=m.id,
+                kind="meeting",
+                status="processing",
+                title=m.title or "Reunião",
+                occurred_at=m.created_at,
+                summary="",
+                details="",
+                suggestions="[]",
+            )
+            db.add(memory)
+            await db.commit()
+            out.memory_id = memory.id
+            background.add_task(
+                remember_meeting,
+                request.app.state.sessionmaker,
+                request.app.state.answer_llm_provider,
+                memory_id=memory.id,
+                segments=segments,
+                questions=questions,
+                title=m.title,
+                language=m.language,
+                started_at=m.created_at,
+            )
+    return out
 
 
 @router.delete("/meetings/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
