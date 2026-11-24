@@ -19,7 +19,7 @@ import json
 import logging
 import struct
 import time
-from collections import deque
+from collections import Counter, deque
 from collections.abc import Callable
 from typing import Any
 
@@ -157,6 +157,9 @@ class StreamSession:
         self.local_final_end = local_final_end if local_final_end is not None else {}
         self.local_seconds: dict[AudioSource, float] = {"system": 0.0, "microphone": 0.0}
         self._local_window = (0.0, 0)
+        # Diagnostics only (counts, no content): why text did or did not reach the screen.
+        self.local_stats: Counter[str] = Counter()
+        self.last_local_segment = time.monotonic()
         self._audio_warned = False
         # Shared across reconnects of the same meeting: replayed frames are dropped.
         self.last_seq = last_seq if last_seq is not None else {}
@@ -315,6 +318,7 @@ class StreamSession:
         if now - start >= 1.0:
             start, count = now, 0
         if count >= LOCAL_SEGMENTS_PER_SECOND:
+            self.local_stats["flood"] += 1
             return  # flood guard; the next partial/final supersedes a dropped partial
         self._local_window = (start, count + 1)
         try:
@@ -323,13 +327,20 @@ class StreamSession:
             await self.error("bad_segment", "invalid transcript segment", retryable=False)
             return
         text = seg.text.strip()
+        kind_name = "final" if seg.is_final else "partial"
+        self.local_stats[f"{seg.source}_{kind_name}_in"] += 1
         if not text or seg.end_ms < seg.start_ms:
+            self.local_stats["empty"] += 1
             return
         if is_noise(text):
+            self.local_stats["noise"] += 1
             return  # Whisper garbage on silence/background sound: not shown, not sent to AI
         key = (self.meeting.id, seg.source)
         if seg.start_ms < self.local_final_end.get(key, -1):
+            self.local_stats["duplicate"] += 1
             return  # already delivered (re-sent after a reconnect)
+        self.local_stats[f"{seg.source}_{kind_name}_shown"] += 1
+        self.last_local_segment = time.monotonic()
         if seg.is_final:
             self.local_final_end[key] = seg.end_ms
             self.local_seconds[seg.source] += (seg.end_ms - seg.start_ms) / 1000
@@ -360,6 +371,15 @@ class StreamSession:
             if now - last_usage >= USAGE_EVERY_S:
                 last_usage = now
                 await self.usage_event()
+                if self.local:
+                    log.info(
+                        "local stt stats",
+                        extra={
+                            "meeting_id": self.meeting.id,
+                            "stats": dict(self.local_stats),
+                            "idle_s": round(now - self.last_local_segment, 1),
+                        },
+                    )
 
     async def usage_event(self) -> None:
         await self.emit(
@@ -554,5 +574,6 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
                 "meeting_id": meeting_id,
                 "seconds": round(session.used, 2),
                 "close_code": session.close_code,
+                "local_stats": dict(session.local_stats),
             },
         )
