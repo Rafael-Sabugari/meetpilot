@@ -14,6 +14,8 @@ from app.realtime.noise import is_noise
         "3.0",
         "you you you you you you you",
         "I'm going to I'm going to I'm going to I'm going to",
+        "J- Transd-als »-Pass-lo- Sch- Eventually-iyorsun-26-",
+        "and iring.WG.yes of t shoulders.D. p, shoot! kry,y,",
     ],
 )
 def test_garbage_is_dropped(text: str) -> None:
@@ -33,6 +35,8 @@ def test_garbage_is_dropped(text: str) -> None:
         "No, no, no, that's not what I meant.",
         "Привет, как дела?",  # another language, but one alphabet per word: kept
         "Yes. Yes. Okay. Sure.",
+        "We use Trigger.new and Account.Name in the handler, e.g. for the check-in flow.",
+        "It's a well-known, high-volume, real-time integration.",
     ],
 )
 def test_real_speech_is_kept(text: str) -> None:

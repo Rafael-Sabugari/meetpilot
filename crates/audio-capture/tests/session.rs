@@ -404,3 +404,32 @@ fn no_watchdog_reopen_while_paused() {
     assert_eq!(s.status().sources[0].reconnects, 0);
     s.stop();
 }
+
+#[test]
+fn a_device_or_format_change_reopens_the_stream() {
+    let p = SyntheticProvider::default();
+    *p.faults.route.lock().unwrap() = Some("airpods@48000x2".into());
+    let faults = std::sync::Arc::clone(&p.faults);
+    let opts = SessionOptions {
+        route_check: Some(Duration::from_millis(200)),
+        ..fast_options()
+    };
+    let (s, rec) = session_with(p, opts, None);
+    s.start(&system_only()).unwrap();
+    std::thread::sleep(Duration::from_millis(600));
+    assert_eq!(s.status().sources[0].reconnects, 0, "no change, no reopen");
+    // AirPods switch to headset mode: same device, lower sample rate.
+    *faults.route.lock().unwrap() = Some("airpods@24000x1".into());
+    assert!(wait_until(Duration::from_secs(5), || s.status().sources[0]
+        .reconnects
+        >= 1));
+    std::thread::sleep(Duration::from_millis(600));
+    assert_eq!(
+        s.status().sources[0].reconnects,
+        1,
+        "reopens once per change"
+    );
+    let before = frame_count(&rec);
+    assert!(wait_until(Duration::from_secs(3), || frame_count(&rec) > before + 5));
+    s.stop();
+}

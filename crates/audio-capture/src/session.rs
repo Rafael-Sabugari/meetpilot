@@ -102,6 +102,8 @@ pub struct SessionOptions {
     /// Catches devices that stop silently, e.g. AirPods switching to headset mode when a
     /// meeting app turns on their microphone. `None` disables the watchdog.
     pub stall_timeout: Option<Duration>,
+    /// How often to check whether the device or its format changed (None = never).
+    pub route_check: Option<Duration>,
 }
 
 impl Default for SessionOptions {
@@ -116,6 +118,7 @@ impl Default for SessionOptions {
             open_timeout: Duration::from_secs(15),
             control_timeout: Duration::from_secs(2),
             stall_timeout: Some(Duration::from_secs(4)),
+            route_check: Some(Duration::from_secs(2)),
         }
     }
 }
@@ -477,11 +480,35 @@ impl WorkerCtx {
         };
         let mut paused = false;
         let mut last_audio = Instant::now();
+        let route = || self.provider.route_signature(self.source, &self.selection);
+        let mut opened_route = route();
+        let mut last_route_check = Instant::now();
 
         loop {
             let parked = pending.lock().ok().and_then(|mut slot| slot.take());
+            // Device moved or changed format (checked even while audio keeps flowing).
+            let route_due = self
+                .options
+                .route_check
+                .is_some_and(|every| last_route_check.elapsed() > every);
+            let moved = if parked.is_none() && route_due && !paused && stream.is_some() {
+                last_route_check = Instant::now();
+                let now = route();
+                now.is_some() && now != opened_route
+            } else {
+                false
+            };
             let msg = match parked {
                 Some(err) => WorkerMsg::Raw(RawMsg::Error(err)),
+                None if moved => {
+                    log::warn!("{} device or format changed: reopening", self.source);
+                    opened_route = route();
+                    last_audio = Instant::now();
+                    WorkerMsg::Raw(RawMsg::Error(CaptureError::DeviceUnavailable {
+                        audio: self.source,
+                        detail: "the audio device or its format changed".into(),
+                    }))
+                }
                 None => match rx.recv_timeout(Duration::from_millis(200)) {
                     Ok(m) => m,
                     Err(RecvTimeoutError::Timeout) => {
@@ -543,6 +570,7 @@ impl WorkerCtx {
                         Ok(Some(s)) => {
                             stream = Some(s);
                             last_audio = Instant::now();
+                            opened_route = route();
                             p.gap_pending = true;
                             p.framer.clear();
                         }

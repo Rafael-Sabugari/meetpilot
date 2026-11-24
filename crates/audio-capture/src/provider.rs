@@ -137,4 +137,14 @@ pub trait AudioCaptureProvider: Send + Sync {
         selection: &SourceSelection,
         sink: RawAudioSink,
     ) -> Result<Box<dyn CaptureStream>>;
+    /// Which device and format `open` would use right now (e.g. "id@48000x2"). When this
+    /// changes during a capture (the default output moved, or AirPods switched to headset
+    /// mode and changed sample rate), the session reopens the stream. `None` = not tracked.
+    fn route_signature(
+        &self,
+        _source: AudioSource,
+        _selection: &SourceSelection,
+    ) -> Option<String> {
+        None
+    }
 }

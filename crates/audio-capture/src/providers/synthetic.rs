@@ -52,6 +52,8 @@ pub struct FaultPlan {
     /// With `disconnect_after_chunks`: the stream just stops sending, without an error
     /// (like a Bluetooth device switching profile).
     pub silent_disconnect: AtomicBool,
+    /// Test hook: the device/format the provider reports (see `route_signature`).
+    pub route: std::sync::Mutex<Option<String>>,
     /// The next `resume()` on any stream fails with a backend error.
     pub fail_next_resume: AtomicBool,
 }
@@ -154,6 +156,14 @@ impl AudioCaptureProvider for SyntheticProvider {
             SyntheticStream::spawn(self.config.clone(), source, sink, disconnect_after, silent);
         stream.faults = Some(Arc::clone(&self.faults));
         Ok(Box::new(stream))
+    }
+
+    fn route_signature(
+        &self,
+        _source: AudioSource,
+        _selection: &SourceSelection,
+    ) -> Option<String> {
+        self.faults.route.lock().ok().and_then(|r| r.clone())
     }
 }
 

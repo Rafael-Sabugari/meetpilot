@@ -209,3 +209,6 @@ Last updated: 2026-11-15. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - [x] "Responder ao que falaram" pela sessão ao vivo (`copilot.request` no WebSocket): resposta em streaming como as automáticas (texto em ~2–3 s, tradução no Haiku depois) e o que os outros falaram aparece em cima da resposta ("Falaram")
 - [x] ordem das respostas: ids únicos por reunião/pedido (`q-<reunião>-<segmento>`, `r-<uuid>`) e um pedido novo sempre vai para o topo (antes reaproveitava um card antigo com o mesmo id e aparecia no meio)
 - [x] overlay: o que os outros falaram desde o último envio aparece como um texto corrido ("Falaram (ainda não enviado)") com a tradução, até apertar ⌘⇧R / "Responder ao que falaram"
+- [x] captura reabre sozinha quando o dispositivo ou o formato muda (ex.: AirPods entram em modo headset e mudam a taxa de amostragem; saída padrão trocada) — `route_signature` + checagem a cada 2 s
+- [x] filtro de lixo: fragmentos com hífen solto ("Transd-als »-Pass-lo-") e letras soltas ("t", "p", "D")
+- [x] respostas com cara de fala: frases curtas, contrações, sem dois-pontos/parênteses/listas longas, sem recitar códigos de erro, sem definição de livro

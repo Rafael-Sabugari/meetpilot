@@ -180,4 +180,13 @@ impl AudioCaptureProvider for MacProvider {
             }
         }
     }
+
+    fn route_signature(&self, source: AudioSource, selection: &SourceSelection) -> Option<String> {
+        match (source, self.backend) {
+            (AudioSource::Microphone, _) | (AudioSource::System, MacSystemBackend::ProcessTap) => {
+                self.cpal.route_signature(source, selection)
+            }
+            _ => None,
+        }
+    }
 }

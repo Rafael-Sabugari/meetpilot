@@ -332,4 +332,15 @@ impl AudioCaptureProvider for CpalProvider {
         }
         Ok(Box::new(Self::open_stream(source, selection, sink)?))
     }
+
+    fn route_signature(&self, source: AudioSource, selection: &SourceSelection) -> Option<String> {
+        let device = Self::find_device(source, selection).ok()?;
+        let id = device.id().ok()?.to_string();
+        let cfg = match source {
+            AudioSource::System => device.default_output_config(),
+            AudioSource::Microphone => device.default_input_config(),
+        }
+        .ok()?;
+        Some(format!("{id}@{}x{}", cfg.sample_rate(), cfg.channels()))
+    }
 }

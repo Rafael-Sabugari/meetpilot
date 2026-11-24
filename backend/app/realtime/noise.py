@@ -12,6 +12,10 @@ from collections import Counter
 
 _WORD = re.compile(r"[^\W\d_]+(?:['\u2019-][^\W\d_]+)*", re.UNICODE)
 _SENTENCE = re.compile(r"[.!?…]+")
+# "J- Transd-als »-Pass-lo- Sch-": word pieces cut off with a dangling hyphen.
+_DANGLING = re.compile(r"\w-(?=\s|$)|»-")
+# Single letters that are not words in English or Portuguese ("t", "p", "D" in noise).
+_LONE_LETTER_WORDS = frozenset(["a", "i", "e", "o", "y", "à", "é"])
 
 
 def _script(ch: str) -> str:
@@ -34,6 +38,11 @@ def is_noise(text: str) -> bool:
     # Letters from two alphabets inside one word never happen in real speech.
     if any(_mixed_script_word(w) for w in words):
         return True
+    if len(_DANGLING.findall(t)) >= 3:
+        return True
+    lone = sum(1 for w in words if len(w) == 1 and w not in _LONE_LETTER_WORDS)
+    if lone >= 3:
+        return True  # "and iring.WG.yes of t shoulders.D. p, shoot! kry,y,"
     n = len(words)
     if n >= 6:
         top = Counter(words).most_common(1)[0][1]

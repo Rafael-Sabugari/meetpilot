@@ -447,6 +447,7 @@ def test_prompt_asks_for_unrehearsed_speech() -> None:
     text = instructions("pt-BR", "natural")
     assert "Boa pergunta" in text and "never open by praising" in text
     assert "never close by offering more" in text
+    assert "thinking out loud in a live call" in text and "contractions" in text
 
 
 def test_follow_ups_see_earlier_suggestions_and_experience_rule() -> None:
