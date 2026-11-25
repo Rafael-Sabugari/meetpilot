@@ -50,7 +50,18 @@ export function BrainPanel(props: {
   );
   useEffect(() => {
     void load();
+    if (refreshKey === 0) return;
+    // A meeting just ended: its memory is created while the app closes the stream, which
+    // can finish a moment after "stop" returns. Look again shortly so it shows up.
+    const timers = [2500, 8000].map((ms) => window.setTimeout(() => void load(), ms));
+    return () => timers.forEach((id) => window.clearTimeout(id));
   }, [refreshKey]);
+  // Also refresh when the window comes back into focus.
+  useEffect(() => {
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [load]);
   // While a meeting summary is being written, check again every few seconds.
   const processing = !!memories?.some((m) => m.status === "processing");
   useEffect(() => {

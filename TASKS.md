@@ -2,6 +2,10 @@
 
 Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
 
+## ✅ Fixed — first real meeting with the second brain (2026-11-25)
+
+- ✅ The 63-min meeting was summarized correctly (title, summary, topics, decisions). But the "Segundo cérebro" list kept showing the old count until a manual reload, because the memory is created while the stream closes, after "stop" returns. The list now reloads 2.5 s and 8 s after a meeting ends, and whenever the window regains focus.
+
 ## ✅ Completed — Interview / work meeting modes + futuristic assistant (2026-11-24)
 
 - ✅ Copilot mode, chosen in Live options (two cards) or in the overlay (🎯 Entrevista / 🛠 Reunião). It applies to the next suggestions, even mid-meeting.
