@@ -2,6 +2,18 @@
 
 Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
 
+## ✅ Completed — Shortcut assistant, "JARVIS by text" (2026-11-24)
+
+- ✅ ⌘⇧Space (Ctrl+Shift+Space) from any app opens a floating, always-on-top window. Typing a question and pressing Enter sends it; Esc or the shortcut hides the window. There is also an "Abrir assistente" button in the Second brain card.
+- ✅ It answers from memories plus "Meu contexto" (citing the meeting it used), and also general questions: code, Salesforce, ready-to-send e-mails and messages. It never invents facts about the user. It knows today's date for "ontem" or "semana passada".
+- ✅ The conversation is kept on this computer only (last 40 messages). After 2 h without use, a new question starts fresh; there is also a "Nova conversa" button.
+- ✅ Backend: `POST /brain/ask` with `assistant: true` uses its own prompt (up to 2.5k output tokens) and adds `<today>` to every brain prompt.
+- ✅ Real Sonnet run:
+  - Trigger bulkification with code: 7.8 s.
+  - E-mail to Bruno, using the meeting memory: 1.9 s.
+  - General fact: 0.9 s.
+- ⏭ Next, if wanted: actions on the Mac (reminders, notes, open apps, start capture), always with confirmation, then Google Calendar and Gmail.
+
 ## ✅ Completed — Second brain (2026-11-24)
 
 - ✅ Phase 1, meeting memory: "Lembrar desta reunião" option (opt-in per meeting, sent with the live settings). When the meeting is finished, the server writes **one summary** (title, summary, topics, decisions, next steps, people, open questions) with the answer model, after the response. Only the summary is stored (`memories` table, Alembic `7c1e2b9d4a10`), never audio or the transcript.

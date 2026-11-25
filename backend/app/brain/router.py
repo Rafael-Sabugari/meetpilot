@@ -56,6 +56,8 @@ class AskIn(BaseModel):
     question: str = Field(min_length=1, max_length=2_000)
     history: list[Turn] = Field(default_factory=list, max_length=20)
     user_context: str | None = Field(default=None, max_length=60_000)
+    # The shortcut assistant: also answers general questions, not only from memories.
+    assistant: bool = False
 
 
 class BriefingIn(BaseModel):
@@ -183,6 +185,7 @@ async def _run(
                 hits=hits,
                 user_context=body.user_context,
                 history=[(t.role, t.text) for t in body.history],
+                assistant=body.assistant,
             )
         else:
             result = await briefing(

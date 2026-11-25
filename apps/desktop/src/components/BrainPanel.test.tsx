@@ -7,6 +7,7 @@ const calls: { method: string; path: string; body?: unknown }[] = [];
 let memories: Memory[] = [];
 vi.mock("../lib/api", () => ({
   toCommandError: (e: unknown) => ({ kind: "x", message: String(e) }),
+  isTauri: () => false,
   api: {
     brain: (method: string, path: string, body?: unknown) => {
       calls.push({ method, path, body });

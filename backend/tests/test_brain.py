@@ -222,3 +222,21 @@ def test_http_copilot_uses_memory_when_allowed(tmp_path: Path) -> None:
         assert "2 milhões de registros" in llm.calls[-1]["input_text"]
         c.post(f"/api/v1/meetings/{mid}/copilot", json={**body, "use_memory": False}, headers=auth)
         assert "<memory>" not in llm.calls[-1]["input_text"]
+
+
+def test_shortcut_assistant_also_answers_general_questions(tmp_path: Path) -> None:
+    llm = FakeLLMProvider()
+    with make_client(tmp_path, llm) as c:
+        auth = register_and_login(c)
+        r = c.post(
+            "/api/v1/brain/ask",
+            json={"question": "Como bulkificar uma trigger?", "assistant": True},
+            headers=auth,
+        )
+        assert r.status_code == 200, r.text
+        call = llm.calls[-1]
+        assert "personal assistant" in call["instructions"]
+        assert "general questions" in call["instructions"]
+        assert "<today>" in call["input_text"]
+        c.post("/api/v1/brain/ask", json={"question": "Oi"}, headers=auth)
+        assert "second brain" in llm.calls[-1]["instructions"]

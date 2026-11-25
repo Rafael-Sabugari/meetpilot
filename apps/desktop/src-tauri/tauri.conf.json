@@ -36,6 +36,22 @@
         "focus": false,
         "x": 40,
         "y": 40
+      },
+      {
+        "label": "assistant",
+        "title": "MeetPilot — assistente",
+        "url": "index.html",
+        "width": 620,
+        "height": 460,
+        "minWidth": 420,
+        "minHeight": 160,
+        "resizable": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": true,
+        "acceptFirstMouse": true
       }
     ],
     "security": {

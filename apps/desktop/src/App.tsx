@@ -4,6 +4,7 @@ import { isTauri } from "./lib/api";
 import { detectLocale, makeT } from "./lib/i18n";
 import { MainView } from "./components/MainView";
 import { OverlayView } from "./components/OverlayView";
+import { AssistantView } from "./components/AssistantView";
 
 function windowLabel(): string {
   if (!isTauri()) return "main";
@@ -16,5 +17,8 @@ function windowLabel(): string {
 
 export default function App() {
   const t = useMemo(() => makeT(detectLocale(navigator.language)), []);
-  return windowLabel() === "overlay" ? <OverlayView t={t} /> : <MainView t={t} />;
+  const label = windowLabel();
+  if (label === "overlay") return <OverlayView t={t} />;
+  if (label === "assistant") return <AssistantView t={t} />;
+  return <MainView t={t} />;
 }

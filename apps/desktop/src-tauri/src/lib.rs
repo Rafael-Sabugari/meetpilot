@@ -19,6 +19,31 @@ use capture::CaptureState;
 
 pub const EVT_SHORTCUT_ERROR: &str = "app://shortcut-error";
 pub const EVT_RESPOND: &str = "app://respond";
+/// The shortcut assistant window was opened: focus its input.
+pub const EVT_ASSISTANT_OPEN: &str = "app://assistant-open";
+pub const ASSISTANT_LABEL: &str = "assistant";
+
+/// Show the assistant (focused, ready to type) or hide it if it is already in front.
+fn toggle_assistant(app: &tauri::AppHandle, force_show: bool) {
+    let Some(w) = app.get_webview_window(ASSISTANT_LABEL) else {
+        return;
+    };
+    let visible = w.is_visible().unwrap_or(false);
+    let focused = w.is_focused().unwrap_or(false);
+    if visible && focused && !force_show {
+        let _ = w.hide();
+        return;
+    }
+    let _ = w.show();
+    let _ = w.unminimize();
+    let _ = w.set_focus();
+    let _ = app.emit_to(ASSISTANT_LABEL, EVT_ASSISTANT_OPEN, ());
+}
+
+#[tauri::command]
+fn show_assistant(app: tauri::AppHandle) {
+    toggle_assistant(&app, true);
+}
 
 fn primary_modifier() -> Modifiers {
     if cfg!(target_os = "macos") {
@@ -36,6 +61,8 @@ pub fn run() {
     let overlay_shortcut = Shortcut::new(Some(primary_modifier()), Code::KeyO);
     // Ctrl/Cmd+Shift+R: ask for a reply to what the others said since the last send.
     let respond_shortcut = Shortcut::new(Some(primary_modifier()), Code::KeyR);
+    // Ctrl/Cmd+Shift+Space: open the assistant (ask anything, by text) from any app.
+    let assistant_shortcut = Shortcut::new(Some(primary_modifier()), Code::Space);
 
     tauri::Builder::default()
         .plugin(
@@ -56,6 +83,8 @@ pub fn run() {
                         // The overlay handles it; show it so the answer is visible.
                         capture::set_overlay_visible(app, true);
                         let _ = app.emit_to("overlay", EVT_RESPOND, ());
+                    } else if shortcut == &assistant_shortcut {
+                        toggle_assistant(app, false);
                     } else if shortcut == &overlay_shortcut {
                         if let Some(w) = app.get_webview_window(capture::OVERLAY_LABEL) {
                             let visible = w.is_visible().unwrap_or(false);
@@ -69,7 +98,12 @@ pub fn run() {
         .manage(AccountState::default())
         .setup(move |app| {
             app.manage(local::LocalState::new(app.handle()));
-            for sc in [pause_shortcut, overlay_shortcut, respond_shortcut] {
+            for sc in [
+                pause_shortcut,
+                overlay_shortcut,
+                respond_shortcut,
+                assistant_shortcut,
+            ] {
                 if let Err(e) = app.global_shortcut().register(sc) {
                     // Another app may own the shortcut; the app stays fully usable without it.
                     log::warn!("could not register global shortcut {sc}: {e}");
@@ -112,6 +146,7 @@ pub fn run() {
             local::local_delete_model,
             copilot::ask_copilot,
             brain::brain_request,
+            show_assistant,
         ])
         .run(tauri::generate_context!())
         .expect("error while running MeetPilot");

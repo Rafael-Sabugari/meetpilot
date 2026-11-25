@@ -4,6 +4,8 @@ Status legend: ✅ implemented and tested · 🛠 planned (contract draft, may c
 
 ## 1. Desktop (Tauri) commands — ✅
 
+`show_assistant` opens the shortcut assistant window (also ⌘⇧Space / Ctrl+Shift+Space).
+
 All return JSON; errors are `{ kind, message, detail? }` where `detail` is a `CaptureError`.
 
 | Command | Args | Returns |
@@ -155,7 +157,7 @@ Memories are summaries of meetings the user chose to remember, plus notes. Each 
 | GET | `/brain/memories/{id}` | | `MemoryOut` |
 | PATCH | `/brain/memories/{id}` | `{title?, summary?, details?, suggestions?}` | `MemoryOut` |
 | DELETE | `/brain/memories/{id}` | | 204 |
-| POST | `/brain/ask` | `{question (≤ 2000), history?: [{role: user\|brain, text}], user_context?}` | `{answer, sources: [{id,title,kind,occurred_at}], input_tokens, output_tokens}` |
+| POST | `/brain/ask` | `{question (≤ 2000), history?: [{role: user\|brain, text}], user_context?, assistant?: bool}` (assistant = shortcut assistant, also general questions) | `{answer, sources: [{id,title,kind,occurred_at}], input_tokens, output_tokens}` |
 | POST | `/brain/briefing` | `{topic (≤ 1000), user_context?}` | same as `/ask` |
 
 `MemoryOut` = `{id, kind: meeting|note, status: processing|ready|failed, title, occurred_at, meeting_id, summary, details (Markdown), suggestions: string[]}`.

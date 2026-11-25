@@ -47,11 +47,12 @@ export const brain = {
   update: (id: string, patch: Partial<Pick<Memory, "title" | "summary" | "details" | "suggestions">>) =>
     api.brain<Memory>("PATCH", `brain/memories/${encodeQuery(id)}`, patch),
   remove: (id: string) => api.brain<null>("DELETE", `brain/memories/${encodeQuery(id)}`),
-  ask: (question: string, history: Turn[], userContext: string | null) =>
+  ask: (question: string, history: Turn[], userContext: string | null, assistant = false) =>
     api.brain<BrainAnswer>("POST", "brain/ask", {
       question,
       history: history.slice(-12).map((t) => ({ role: t.role, text: t.text.slice(0, 8000) })),
       user_context: userContext,
+      assistant,
     }),
   briefing: (topic: string, userContext: string | null) =>
     api.brain<BrainAnswer>("POST", "brain/briefing", { topic, user_context: userContext }),

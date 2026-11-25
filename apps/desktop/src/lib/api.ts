@@ -152,6 +152,8 @@ export const api = {
   account: () => invoke<AccountInfo | null>("account_status"),
   usage: () => invoke<UsageDto>("account_usage"),
   askCopilot: (request: AskRequest) => invoke<AnswerEvent>("ask_copilot", { request }),
+  /** Open the shortcut assistant window. */
+  showAssistant: () => invoke<void>("show_assistant"),
   /** Second brain API (`brain/...` paths only; checked again in the app). */
   brain: <T>(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, body?: unknown) =>
     invoke<T>("brain_request", { request: { method, path, body: body ?? null } }),

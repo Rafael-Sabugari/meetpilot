@@ -178,3 +178,12 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .brain__suggestion span { flex: 1 1 240px; }
 .brain__file { cursor: pointer; }
 .brain textarea { width: 100%; }
+
+/* Shortcut assistant window */
+.assistant { height: 100vh; padding: 10px 12px; background: rgba(11, 16, 32, 0.97); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: 8px; cursor: grab; user-select: none; overflow: hidden; }
+.assistant__head { display: flex; align-items: center; gap: 10px; flex: none; }
+.assistant__head-actions { margin-left: auto; display: flex; gap: 6px; }
+.assistant__chat { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; gap: 8px; align-content: start; cursor: auto; user-select: text; }
+.assistant__meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.assistant__input { flex: none; width: 100%; resize: none; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px; font: inherit; cursor: text; }
+.assistant__input:focus { outline: 1px solid var(--accent); }

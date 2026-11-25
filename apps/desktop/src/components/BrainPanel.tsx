@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageKey } from "../lib/i18n";
-import { toCommandError } from "../lib/api";
+import { api, isTauri, toCommandError } from "../lib/api";
 import {
   MAX_NOTE,
   addFact,
@@ -70,8 +70,13 @@ export function BrainPanel(props: {
     <section className="card card--wide brain" data-testid="brain">
       <div className="row-between">
         <h2>{t("brain.title")}</h2>
-        <span className="muted small">
-          {memories ? `${memories.length} ${t("brain.count")}` : ""}
+        <span className="row">
+          <span className="muted small">{memories ? `${memories.length} ${t("brain.count")}` : ""}</span>
+          {isTauri() && (
+            <button className="btn btn--small" onClick={() => void api.showAssistant().catch(() => {})} title={t("assistant.hint")}>
+              ✦ {t("assistant.open")}
+            </button>
+          )}
         </span>
       </div>
       <p className="muted small">{t("brain.help")}</p>
