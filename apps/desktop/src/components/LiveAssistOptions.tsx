@@ -1,6 +1,6 @@
-import type { AutoSuggestions, TranslateTo } from "@meetpilot/shared-types";
+import type { AutoSuggestions, CopilotScenario, TranslateTo } from "@meetpilot/shared-types";
 import type { MessageKey } from "../lib/i18n";
-import type { LivePrefs } from "../lib/liveOptions";
+import { SCENARIOS, type LivePrefs } from "../lib/liveOptions";
 
 type T = (k: MessageKey) => string;
 
@@ -17,6 +17,25 @@ export function LiveAssistOptions(props: {
   const { t, prefs, onChange, disabled } = props;
   return (
     <div className="live-options" data-testid="live-options">
+      <div className="scenario" role="radiogroup" aria-label={t("live.scenario")}>
+        <span className="muted small">{t("live.scenario")}</span>
+        <div className="scenario__options">
+          {SCENARIOS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              role="radio"
+              aria-checked={prefs.scenario === s}
+              className={`scenario__opt ${prefs.scenario === s ? "scenario__opt--on" : ""}`}
+              disabled={disabled}
+              onClick={() => onChange({ ...prefs, scenario: s as CopilotScenario })}
+            >
+              <strong>{t(`live.scenario.${s}` as MessageKey)}</strong>
+              <span className="muted small">{t(`live.scenario.${s}.hint` as MessageKey)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
       <label className="select">
         <span className="muted small">{t("live.auto")}</span>
         <select

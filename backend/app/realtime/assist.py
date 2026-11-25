@@ -23,7 +23,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from app.ai.context import ContextSegment, build_context
-from app.ai.copilot import Tone, ask, translate_answer
+from app.ai.copilot import Scenario, Tone, ask, translate_answer
 from app.ai.question_check import check as check_question
 from app.ai.questions import AutoAnswerPolicy, AutoMode, assess, should_answer, worth_checking
 from app.ai.translation import needs_translation, same_text, translate
@@ -48,6 +48,8 @@ class LiveSettings(BaseModel):
 
     auto_suggestions: AutoMode = "directed"
     tone: Tone = "natural"
+    # Interview (you are the candidate) or working meeting (collaborative discussion).
+    scenario: Scenario = "interview"
     translate_to: Literal["pt-BR", "en"] | None = None
     # Written by the user about themselves and the meeting (kept in memory only).
     user_context: str | None = Field(default=None, max_length=60_000)
@@ -239,7 +241,10 @@ class LiveAssist:
         self._checks_in_flight += 1
         try:
             is_q, directed, result = await check_question(
-                self.llm, recent, self.settings.user_context
+                self.llm,
+                recent,
+                self.settings.user_context,
+                group_counts=self.settings.scenario == "meeting",
             )
         except LLMError:
             return  # best effort: a failed check just means no automatic suggestion
@@ -336,6 +341,7 @@ class LiveAssist:
                     answer_language=answer_language,
                     meeting_language=self.meeting_language,
                     tone=self.settings.tone,
+                    scenario=self.settings.scenario,
                     max_output_tokens=self.max_output_tokens,
                     user_context=self.settings.user_context,
                     earlier=list(self.history),

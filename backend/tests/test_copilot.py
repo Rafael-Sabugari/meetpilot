@@ -520,3 +520,12 @@ def test_reply_can_target_what_others_said_and_scenarios_are_hypothetical(
     assert "in reply to what Others just said" in sent and "what do the logs say" in sent
     rules = instructions("en", "natural")
     assert "never answer that you don't have the error" in rules
+
+
+def test_scenarios_change_how_answers_are_written() -> None:
+    interview = instructions("pt-BR", "natural")
+    meeting = instructions("pt-BR", "natural", "meeting")
+    assert "JOB INTERVIEW" in interview and "WORKING MEETING" not in interview
+    assert "WORKING MEETING" in meeting and "JOB INTERVIEW" not in meeting
+    assert "trade-offs" in meeting and "Rule 11 does not apply" in meeting
+    assert interview == instructions("pt-BR", "natural", "interview")

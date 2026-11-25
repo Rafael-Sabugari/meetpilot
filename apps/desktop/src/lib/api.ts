@@ -53,6 +53,8 @@ export interface AskRequest {
   question?: string | null;
   transcript: { source: "system" | "microphone"; text: string; start_ms: number }[];
   tone: CopilotTone;
+  /** Interview or working meeting. */
+  scenario?: "interview" | "meeting";
   language?: "pt-BR" | "en" | null;
   userContext?: string | null;
   /** Also translate the answer into this language. */

@@ -29,4 +29,13 @@ describe("LiveAssistOptions", () => {
     expect(screen.queryByText(/conta como uma pergunta ao copiloto/)).toBeNull();
     expect((screen.getByLabelText("Sugestões automáticas") as HTMLSelectElement).disabled).toBe(true);
   });
+
+  it("switches between interview and work meeting", () => {
+    let last: LivePrefs = DEFAULT_LIVE;
+    render(<LiveAssistOptions t={t} prefs={DEFAULT_LIVE} onChange={(p) => (last = p)} disabled={false} />);
+    const interview = screen.getByRole("radio", { name: /Entrevista/ });
+    expect(interview.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("radio", { name: /Reunião de trabalho/ }));
+    expect(last.scenario).toBe("meeting");
+  });
 });

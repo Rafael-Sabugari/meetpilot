@@ -37,8 +37,12 @@ export function AssistantView(props: { t: (k: MessageKey) => string }) {
     });
     return () => void off.then((f) => f());
   }, [focus]);
-  useEffect(() => saveChat(chat), [chat]);
-  useEffect(() => end.current?.scrollIntoView?.({ block: "end" }), [chat, busy]);
+  useEffect(() => {
+    saveChat(chat);
+  }, [chat]);
+  useEffect(() => {
+    end.current?.scrollIntoView?.({ block: "end" });
+  }, [chat, busy]);
 
   const send = async () => {
     const question = draft.trim();
@@ -69,42 +73,63 @@ export function AssistantView(props: { t: (k: MessageKey) => string }) {
     }
   };
 
+  const status = busy ? t("assistant.status.thinking") : error ? t("assistant.status.error") : t("assistant.status.ready");
   return (
     <main
-      className="assistant"
+      className={`jarvis ${busy ? "jarvis--busy" : ""} ${error ? "jarvis--error" : ""}`}
       onMouseDown={startOverlayDrag}
       onKeyDown={(e) => {
         if (e.key === "Escape") hide();
       }}
     >
-      <div className="assistant__head">
-        <strong>✦ {t("assistant.title")}</strong>
-        <span className="muted small">{t("assistant.hint")}</span>
-        <span className="assistant__head-actions">
+      <span className="jarvis__corner jarvis__corner--tl" aria-hidden="true" />
+      <span className="jarvis__corner jarvis__corner--tr" aria-hidden="true" />
+      <span className="jarvis__corner jarvis__corner--bl" aria-hidden="true" />
+      <span className="jarvis__corner jarvis__corner--br" aria-hidden="true" />
+      <header className="jarvis__head">
+        <div className="jarvis__core" aria-hidden="true">
+          <span className="jarvis__ring jarvis__ring--a" />
+          <span className="jarvis__ring jarvis__ring--b" />
+          <span className="jarvis__ring jarvis__ring--c" />
+          <span className="jarvis__dot" />
+        </div>
+        <div className="jarvis__id">
+          <span className="jarvis__name">MEETPILOT · {t("assistant.title")}</span>
+          <span className="jarvis__status" role="status">
+            <i className="jarvis__led" /> {status}
+          </span>
+        </div>
+        <span className="jarvis__actions">
           {chat.length > 0 && (
-            <button className="btn btn--small" onClick={() => setChat([])} disabled={busy}>
+            <button className="jarvis__btn" onClick={() => setChat([])} disabled={busy}>
               {t("brain.ask.new")}
             </button>
           )}
-          <button className="btn btn--small" aria-label={t("assistant.close")} onClick={hide}>
-            ×
+          <button className="jarvis__btn jarvis__btn--icon" aria-label={t("assistant.close")} onClick={hide}>
+            ✕
           </button>
         </span>
-      </div>
-      <div className="assistant__chat" data-no-drag>
-        {chat.length === 0 && !busy && <p className="muted small">{t("assistant.examples")}</p>}
+      </header>
+      <div className="jarvis__chat" data-no-drag>
+        {chat.length === 0 && !busy && (
+          <div className="jarvis__empty">
+            <p className="jarvis__greet">{t("assistant.greeting")}</p>
+            <p className="jarvis__examples">{t("assistant.examples")}</p>
+          </div>
+        )}
         {chat.map((m, i) => (
-          <div key={i} className={`brain__msg brain__msg--${m.role}`}>
-            <p className="brain__text">{m.text}</p>
+          <div key={i} className={`jarvis__msg jarvis__msg--${m.role}`}>
+            <span className="jarvis__who">{m.role === "user" ? t("assistant.you") : "✦ MEETPILOT"}</span>
+            <p className="jarvis__text">{m.text}</p>
             {m.role === "brain" && (
-              <div className="assistant__meta small">
+              <div className="jarvis__meta">
                 {m.sources?.map((s) => (
-                  <span key={s.id} className="pill pill--accent">
-                    {s.title} · {formatDate(s.occurred_at, navigator.language)}
+                  <span key={s.id} className="jarvis__chip">
+                    ◈ {s.title} · {formatDate(s.occurred_at, navigator.language)}
                   </span>
                 ))}
                 <button
-                  className="link"
+                  className="jarvis__copy"
                   onClick={() =>
                     void navigator.clipboard?.writeText(m.text).then(() => {
                       setCopied(i);
@@ -118,21 +143,41 @@ export function AssistantView(props: { t: (k: MessageKey) => string }) {
             )}
           </div>
         ))}
-        {busy && <p className="muted small">{t("brain.thinking")}</p>}
+        {busy && (
+          <div className="jarvis__thinking" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+            <em>{t("assistant.status.thinking")}</em>
+          </div>
+        )}
         <div ref={end} />
       </div>
-      {error && <p className="error-text small">{error}</p>}
-      <textarea
-        ref={input}
-        className="assistant__input"
-        rows={2}
-        maxLength={2000}
-        placeholder={t("assistant.placeholder")}
-        aria-label={t("assistant.placeholder")}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={onKey}
-      />
+      {error && <p className="jarvis__error">⚠ {error}</p>}
+      <div className="jarvis__prompt" data-no-drag>
+        <span className="jarvis__caret" aria-hidden="true">
+          ›
+        </span>
+        <textarea
+          ref={input}
+          className="jarvis__input"
+          rows={2}
+          maxLength={2000}
+          placeholder={t("assistant.placeholder")}
+          aria-label={t("assistant.placeholder")}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={onKey}
+        />
+      </div>
+      <footer className="jarvis__keys" aria-hidden="true">
+        <span><kbd>↵</kbd> {t("assistant.key.send")}</span>
+        <span><kbd>⇧↵</kbd> {t("assistant.key.newline")}</span>
+        <span><kbd>esc</kbd> {t("assistant.key.close")}</span>
+        <span className="jarvis__keys-right"><kbd>⌘⇧␣</kbd></span>
+      </footer>
     </main>
   );
 }

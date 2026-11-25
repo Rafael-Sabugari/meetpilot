@@ -9,7 +9,7 @@ import type { CopilotItem } from "../lib/copilot";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { pendingFromOthers } from "../lib/pending";
-import type { CopilotTone } from "@meetpilot/shared-types";
+import type { CopilotScenario, CopilotTone } from "@meetpilot/shared-types";
 import { api } from "../lib/api";
 import { loadLivePrefs, saveLivePrefs, toLiveOptions } from "../lib/liveOptions";
 import { CaptureIndicator } from "./CaptureIndicator";
@@ -53,6 +53,12 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
       void off.then((u) => u());
     };
   }, []);
+  const setScenario = (scenario: CopilotScenario) => {
+    const next = { ...loadLivePrefs(), scenario };
+    saveLivePrefs(next);
+    rerender((n) => n + 1);
+    if (transcribing) api.setLiveOptions(toLiveOptions(next)).catch(() => {});
+  };
   const setTone = (tone: CopilotTone) => {
     const next = { ...loadLivePrefs(), tone };
     saveLivePrefs(next);
@@ -115,6 +121,7 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
                 💬 {t("copilot.reply")}
               </button>
             )}
+            <OverlayScenario t={t} scenario={prefs.scenario} onChange={setScenario} />
             <OverlayTone t={t} tone={prefs.tone} onChange={setTone} />
           </div>
           {live && pending.text && (
@@ -179,6 +186,31 @@ export function OverlayTone(props: {
         ))}
       </select>
     </label>
+  );
+}
+
+/** Interview / working meeting switch, applies to the next suggestions. */
+export function OverlayScenario(props: {
+  t: (k: MessageKey) => string;
+  scenario: CopilotScenario;
+  onChange: (s: CopilotScenario) => void;
+}) {
+  const { t, scenario, onChange } = props;
+  return (
+    <div className="overlay__scenario" role="radiogroup" aria-label={t("live.scenario")}>
+      {(["interview", "meeting"] as const).map((s) => (
+        <button
+          key={s}
+          role="radio"
+          aria-checked={scenario === s}
+          className={`btn btn--small ${scenario === s ? "btn--primary" : ""}`}
+          title={t(`live.scenario.${s}.hint` as MessageKey)}
+          onClick={() => onChange(s)}
+        >
+          {s === "interview" ? "🎯" : "🛠"} {t(`live.scenario.${s}.short` as MessageKey)}
+        </button>
+      ))}
+    </div>
   );
 }
 

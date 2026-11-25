@@ -240,3 +240,22 @@ def test_shortcut_assistant_also_answers_general_questions(tmp_path: Path) -> No
         assert "<today>" in call["input_text"]
         c.post("/api/v1/brain/ask", json={"question": "Oi"}, headers=auth)
         assert "second brain" in llm.calls[-1]["instructions"]
+
+
+def test_meeting_scenario_reaches_answers_and_question_checks(tmp_path: Path) -> None:
+    llm = FakeLLMProvider()
+    with make_client(tmp_path, llm) as c:
+        auth = register_and_login(c)
+        _meeting_with_speech(c, auth, {"scenario": "meeting", "auto_suggestions": "all"})
+        answers = [x for x in llm.calls if x["schema_name"] == "copilot_answer"]
+        assert answers and all("WORKING MEETING" in x["instructions"] for x in answers)
+        checks = [x for x in llm.calls if x["schema_name"] == "question_check"]
+        assert all("whole group" in x["instructions"] for x in checks)
+        mid = c.post("/api/v1/meetings", json={"language": "pt-BR"}, headers=auth).json()[
+            "meeting"
+        ]["id"]
+        c.post(f"/api/v1/meetings/{mid}/copilot", json={"question": "E agora?"}, headers=auth)
+        assert "JOB INTERVIEW" in llm.calls[-1]["instructions"]
+        body = {"question": "E agora?", "scenario": "meeting"}
+        c.post(f"/api/v1/meetings/{mid}/copilot", json=body, headers=auth)
+        assert "WORKING MEETING" in llm.calls[-1]["instructions"]

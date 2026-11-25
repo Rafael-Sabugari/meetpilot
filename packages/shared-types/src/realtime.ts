@@ -74,6 +74,9 @@ export type LinkStatus =
 
 /** Ask-Copilot (POST /api/v1/meetings/{id}/copilot). */
 export type CopilotMode = "ask" | "reply" | "summarize";
+/** Interview (you are the candidate) or working meeting (collaborative discussion). */
+export type CopilotScenario = "interview" | "meeting";
+
 export type CopilotTone = "natural" | "concise" | "technical" | "formal";
 export type Grounding = "from_conversation" | "from_user_context" | "general_suggestion" | "needs_confirmation";
 
@@ -98,6 +101,7 @@ export interface LiveOptions {
   translateTo: TranslateTo | null;
   /** Written by the user about themselves and the meeting; kept on this computer. */
   userContext: string | null;
+  scenario: CopilotScenario;
   /** Second brain: save a summary of this meeting when it ends (never audio). */
   remember: boolean;
   /** Second brain: let answers use memories of earlier meetings and notes. */

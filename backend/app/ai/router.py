@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field, model_validator
 
 from app.ai.context import ContextSegment, build_context
-from app.ai.copilot import Grounding, Mode, Tone, ask, translate_answer
+from app.ai.copilot import Grounding, Mode, Scenario, Tone, ask, translate_answer
 from app.auth.deps import DB, CurrentUser
 from app.auth.ratelimit import RateLimiter
 from app.brain.search import render
@@ -31,6 +31,7 @@ class CopilotRequest(BaseModel):
     question: str | None = Field(default=None, max_length=4_000)
     transcript: list[ContextSegment] = Field(default_factory=list, max_length=500)
     tone: Tone = "natural"
+    scenario: Scenario = "interview"
     # Answer language; defaults to the meeting language.
     language: Literal["pt-BR", "en"] | None = None
     # Written by the user about themselves and the meeting; used for this answer only.
@@ -105,6 +106,7 @@ async def copilot(
             answer_language=answer_language,
             meeting_language=meeting.language,
             tone=body.tone,
+            scenario=body.scenario,
             max_output_tokens=settings.copilot_max_output_tokens,
             user_context=body.user_context,
             earlier=list(history),

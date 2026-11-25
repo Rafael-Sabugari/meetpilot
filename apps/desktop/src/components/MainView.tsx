@@ -143,6 +143,7 @@ export function MainView({ t }: { t: T }) {
       next.translateTo !== live.translateTo ||
       next.userContext !== live.userContext ||
       next.remember !== live.remember ||
+      next.scenario !== live.scenario ||
       next.useMemory !== live.useMemory;
     setLive(next);
     saveLivePrefs(next);

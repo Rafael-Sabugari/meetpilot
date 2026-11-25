@@ -1,4 +1,4 @@
-import type { AutoSuggestions, CopilotTone, LiveOptions, TranslateTo } from "@meetpilot/shared-types";
+import type { AutoSuggestions, CopilotScenario, CopilotTone, LiveOptions, TranslateTo } from "@meetpilot/shared-types";
 import type { TranslationView } from "./transcript";
 
 export interface LivePrefs extends LiveOptions {
@@ -10,6 +10,7 @@ export const MAX_USER_CONTEXT = 60000;
 export const DEFAULT_LIVE: LivePrefs = {
   autoSuggestions: "directed",
   tone: "natural",
+  scenario: "interview",
   translateTo: null,
   userContext: null,
   remember: false,
@@ -20,6 +21,7 @@ export const DEFAULT_LIVE: LivePrefs = {
 const KEY = "meetpilot.live.v1";
 const AUTO: AutoSuggestions[] = ["off", "directed", "all"];
 const TONES: CopilotTone[] = ["natural", "concise", "technical", "formal"];
+export const SCENARIOS: CopilotScenario[] = ["interview", "meeting"];
 const TARGETS: TranslateTo[] = ["pt-BR", "en"];
 const VIEWS: TranslationView[] = ["both", "translation", "original"];
 
@@ -35,6 +37,7 @@ export function parseLivePrefs(raw: string | null): LivePrefs {
   return {
     autoSuggestions: pick(v.autoSuggestions, AUTO, DEFAULT_LIVE.autoSuggestions),
     tone: pick(v.tone, TONES, DEFAULT_LIVE.tone),
+    scenario: pick(v.scenario, SCENARIOS, DEFAULT_LIVE.scenario),
     translateTo: pick<TranslateTo | null>(v.translateTo, [...TARGETS, null], null),
     userContext:
       typeof v.userContext === "string" && v.userContext.trim()
@@ -67,6 +70,7 @@ export function toLiveOptions(p: LivePrefs): LiveOptions {
   return {
     autoSuggestions: p.autoSuggestions,
     tone: p.tone,
+    scenario: p.scenario,
     translateTo: p.translateTo,
     userContext: p.userContext?.trim() ? p.userContext.trim().slice(0, MAX_USER_CONTEXT) : null,
     remember: p.remember,

@@ -160,6 +160,9 @@ pub struct CopilotRequest {
     /// Also translate the answer into this language ("pt-BR" | "en"); omitted when none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub translate_to: Option<String>,
+    /// "interview" | "meeting"; omitted = interview.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]

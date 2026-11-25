@@ -188,6 +188,14 @@ pub enum Tone {
     Technical,
 }
 
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Scenario {
+    #[default]
+    Interview,
+    Meeting,
+}
+
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 pub enum TranslateTo {
     #[serde(rename = "pt-BR")]
@@ -204,6 +212,9 @@ pub struct LiveOptions {
     #[serde(rename(serialize = "auto_suggestions"))]
     pub auto_suggestions: AutoSuggestions,
     pub tone: Tone,
+    /// Interview (you are the candidate) or working meeting (collaborative discussion).
+    #[serde(default)]
+    pub scenario: Scenario,
     #[serde(rename(serialize = "translate_to"))]
     pub translate_to: Option<TranslateTo>,
     /// "My context": written by the user, kept on this computer, sent only while a meeting
@@ -750,7 +761,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             o.to_server(),
-            serde_json::json!({"auto_suggestions":"directed","tone":"formal","translate_to":"en","user_context":null,"remember":false,"use_memory":true})
+            serde_json::json!({"auto_suggestions":"directed","tone":"formal","scenario":"interview","translate_to":"en","user_context":null,"remember":false,"use_memory":true})
         );
         assert!(
             o.to_server()["user_context"].is_null(),

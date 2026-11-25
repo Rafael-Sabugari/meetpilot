@@ -154,7 +154,9 @@ function AskBrain(props: { t: T; locale: string; userContext: string | null; onS
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView?.({ block: "nearest" }), [chat, busy]);
+  useEffect(() => {
+    end.current?.scrollIntoView?.({ block: "nearest" });
+  }, [chat, busy]);
 
   const send = async () => {
     const question = draft.trim();

@@ -46,6 +46,7 @@ export function useCopilot() {
           transcript: contextFromTranscript(transcript),
           userContext,
           translateTo: loadLivePrefs().translateTo,
+          scenario: loadLivePrefs().scenario,
         });
         return null;
       } catch (e) {

@@ -2,6 +2,17 @@
 
 Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
 
+## ✅ Completed — Interview / work meeting modes + futuristic assistant (2026-11-24)
+
+- ✅ Copilot mode, chosen in Live options (two cards) or in the overlay (🎯 Entrevista / 🛠 Reunião). It applies to the next suggestions, even mid-meeting.
+  - **Interview** (default): you are the candidate. Answers use your real stories and results (situation, what you did, result). Hypothetical scenarios are worked like a candidate.
+  - **Work meeting**: a teammate discussing with other developers. An opinion with the reason, one or two options with trade-offs, risks and edge cases, building on what others said, questions that unblock the decision, next steps, and a "a gente" tone. No career stories (past experience only as one-clause evidence). Problems described are treated as real. Questions to the whole group ("o que vocês acham?") also get suggestions.
+  - Server: `scenario` in `copilot.settings` and `POST /copilot` (prompt rule 15 per scenario); the question check counts group questions in meeting mode.
+  - Real Sonnet run on the same SAP→Salesforce question: the meeting answer compared options and limits and ended with a question for the team; the interview answer leaned on the user's own projects.
+- ✅ Assistant window redesigned as a futuristic HUD: animated energy core (faster while thinking, red on error), corner brackets, moving grid, scanlines, neon glass messages, source chips, an equalizer while processing, a terminal-style prompt and a key legend. Motion is off with "reduce motion".
+- ✅ Fixed: with newer WebKit/Chromium, `scrollIntoView` returns a Promise; effects that returned it crashed React on the first question (assistant and "Perguntar"). The effects now return nothing.
+- ✅ Tests: backend +2; frontend 101.
+
 ## ✅ Completed — Shortcut assistant, "JARVIS by text" (2026-11-24)
 
 - ✅ ⌘⇧Space (Ctrl+Shift+Space) from any app opens a floating, always-on-top window. Typing a question and pressing Enter sends it; Esc or the shortcut hides the window. There is also an "Abrir assistente" button in the Second brain card.

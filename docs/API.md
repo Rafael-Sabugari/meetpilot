@@ -167,3 +167,5 @@ The ask and briefing endpoints are limited to 20 requests per minute per user.
 **Meeting memory:** `POST /meetings/{id}/finish` accepts an optional `{remember: bool}`. Without a body, the server uses the `remember` value from the meeting's last `copilot.settings`. When remember is on and something was transcribed, the response includes `memory_id`. The memory starts as `processing`, and the summary is written after the response.
 
 **Settings:** `copilot.settings` (WebSocket) adds `remember` (default false) and `use_memory` (default true). `POST /meetings/{id}/copilot` adds `use_memory` (default true).
+
+**Scenario (2026-11-24):** `copilot.settings` and `POST /meetings/{id}/copilot` accept `scenario`: `interview` (default; the user is the candidate) or `meeting` (collaborative work discussion; group questions also count as directed to the user).

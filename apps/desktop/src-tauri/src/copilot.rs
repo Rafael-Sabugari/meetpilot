@@ -33,6 +33,8 @@ pub struct AskRequest {
     pub user_context: Option<String>,
     #[serde(default)]
     pub translate_to: Option<String>,
+    #[serde(default)]
+    pub scenario: Option<String>,
 }
 
 fn default_tone() -> String {
@@ -107,6 +109,10 @@ pub async fn ask_copilot(
             .translate_to
             .clone()
             .filter(|l| l == "pt-BR" || l == "en"),
+        scenario: request
+            .scenario
+            .clone()
+            .filter(|s| s == "interview" || s == "meeting"),
     };
     match client.copilot(&access, &meeting_id, &body).await {
         Ok(answer) => {
