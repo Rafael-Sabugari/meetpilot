@@ -4,7 +4,7 @@ Status legend: ✅ implemented and tested · 🛠 planned (contract draft, may c
 
 ## 1. Desktop (Tauri) commands — ✅
 
-`show_assistant` opens the shortcut assistant window (also Control+Shift+Space on every platform).
+`show_assistant` opens the shortcut assistant window (also ⌘⇧Space / Ctrl+Shift+Space).
 
 All return JSON; errors are `{ kind, message, detail? }` where `detail` is a `CaptureError`.
 

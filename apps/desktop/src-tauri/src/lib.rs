@@ -61,10 +61,8 @@ pub fn run() {
     let overlay_shortcut = Shortcut::new(Some(primary_modifier()), Code::KeyO);
     // Ctrl/Cmd+Shift+R: ask for a reply to what the others said since the last send.
     let respond_shortcut = Shortcut::new(Some(primary_modifier()), Code::KeyR);
-    // Ctrl+Shift+Space (all platforms): open the assistant (ask anything, by text) from any
-    // app. Not Cmd+Shift+Space on macOS: other apps commonly take that one.
-    let assistant_shortcut =
-        Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space);
+    // Ctrl/Cmd+Shift+Space: open the assistant (ask anything, by text) from any app.
+    let assistant_shortcut = Shortcut::new(Some(primary_modifier()), Code::Space);
 
     tauri::Builder::default()
         .plugin(

@@ -13,7 +13,7 @@ const hide = () => {
 };
 
 /**
- * The shortcut assistant (Control+Shift+Space): ask anything by text, from any app.
+ * The shortcut assistant (Cmd/Ctrl+Shift+Space): ask anything by text, from any app.
  * Knows your meetings and notes (second brain) and "My context", plus general knowledge.
  */
 export function AssistantView(props: { t: (k: MessageKey) => string }) {
@@ -176,7 +176,7 @@ export function AssistantView(props: { t: (k: MessageKey) => string }) {
         <span><kbd>↵</kbd> {t("assistant.key.send")}</span>
         <span><kbd>⇧↵</kbd> {t("assistant.key.newline")}</span>
         <span><kbd>esc</kbd> {t("assistant.key.close")}</span>
-        <span className="jarvis__keys-right"><kbd>⌃⇧␣</kbd></span>
+        <span className="jarvis__keys-right"><kbd>⌘⇧␣</kbd></span>
       </footer>
     </main>
   );
