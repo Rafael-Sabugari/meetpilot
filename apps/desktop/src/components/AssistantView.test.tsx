@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { makeT } from "../lib/i18n";
 
 const calls: { path: string; body: unknown }[] = [];
@@ -36,7 +36,7 @@ describe("AssistantView", () => {
     fireEvent.keyDown(box(), { key: "Enter" });
     expect(await screen.findByText("Use um handler por objeto.")).toBeTruthy();
     expect(calls[0].body).toMatchObject({ question: "Como bulkificar uma trigger?", assistant: true, history: [], user_context: "Sou o Rafael." });
-    expect(JSON.parse(localStorage.getItem("meetpilot.assistant.chat") ?? "[]")).toHaveLength(2);
+    await waitFor(() => expect(JSON.parse(localStorage.getItem("meetpilot.assistant.chat") ?? "[]")).toHaveLength(2));
     // Shift+Enter does not send.
     fireEvent.change(box(), { target: { value: "linha" } });
     fireEvent.keyDown(box(), { key: "Enter", shiftKey: true });
