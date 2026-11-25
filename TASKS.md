@@ -4,6 +4,8 @@ Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 
 ## ✅ Fixed — first real meeting with the second brain (2026-11-25)
 
+- ✅ Cleanup inside each local-Whisper segment (`noise.clean`) before the noise check. It removes letters from non-Latin alphabets, number loops ("1.1.1.1", "1. 1. 1. 1."), a word or short phrase repeated 3+ times ("do… do… do…", "ARQUI, ARQUI, ARQUI"), punctuation runs and U+FFFD. Real speech around them is kept. Counted as `cleaned` in the "local stt stats" log.
+- ✅ Work-meeting answers vary their opening: usually straight to the point; agreement ("Concordo", "Faz sentido"…) only now and then, and never when one of the last two suggestions opened that way. Real Sonnet run: both answers opened with the opinion itself.
 - ✅ The 63-min meeting was summarized correctly (title, summary, topics, decisions). But the "Segundo cérebro" list kept showing the old count until a manual reload, because the memory is created while the stream closes, after "stop" returns. The list now reloads 2.5 s and 8 s after a meeting ends, and whenever the window regains focus.
 
 ## ✅ Completed — Interview / work meeting modes + futuristic assistant (2026-11-24)

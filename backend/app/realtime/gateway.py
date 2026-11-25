@@ -44,7 +44,7 @@ from app.realtime.events import (
     EventType,
     TranscriptSegment,
 )
-from app.realtime.noise import is_noise
+from app.realtime.noise import clean, is_noise
 from app.usage.service import count_this_period, summary
 
 log = logging.getLogger("meetpilot.realtime")
@@ -330,13 +330,16 @@ class StreamSession:
         except ValidationError:
             await self.error("bad_segment", "invalid transcript segment", retryable=False)
             return
-        text = seg.text.strip()
+        raw = seg.text.strip()
+        text = clean(raw)
         kind_name = "final" if seg.is_final else "partial"
+        if text and text != raw:
+            self.local_stats["cleaned"] += 1
         self.local_stats[f"{seg.source}_{kind_name}_in"] += 1
-        if not text or seg.end_ms < seg.start_ms:
+        if not raw or seg.end_ms < seg.start_ms:
             self.local_stats["empty"] += 1
             return
-        if is_noise(text):
+        if not text or is_noise(text):
             self.local_stats["noise"] += 1
             return  # Whisper garbage on silence/background sound: not shown, not sent to AI
         key = (self.meeting.id, seg.source)

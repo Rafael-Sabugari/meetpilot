@@ -51,3 +51,32 @@ def is_noise(text: str) -> bool:
     # Many one-word "sentences" in a row: fragments, not speech.
     pieces = [p for p in _SENTENCE.split(t) if _WORD.search(p)]
     return len(pieces) >= 6 and n / len(pieces) <= 1.7
+
+
+# -- cleanup inside a segment ------------------------------------------------------------------
+# Whisper can glue garbage onto real speech ("…a gente fala. 1.1.1.1.1 香港,,,, do… do… do…").
+# `clean` removes those pieces and keeps the rest; `is_noise` then judges what is left.
+
+_NUMBER_CHAIN = re.compile(r"\b\d+(?:[.,]\d+){3,}\.?")  # 1.1.1.1.1 / 2.1.2.1.1
+_NUMBER_RUN = re.compile(r"(?:\b\d{1,2}[.,]?(?:\s+|$)){4,}")  # 1. 1. 1. 1. / 4, 5, 6, 6,
+# The same word or short phrase three or more times in a row ("do… do… do…", "ARQUI, ARQUI").
+_REPEAT = re.compile(
+    r"\b([^\W\d_]+(?:\s+[^\W\d_]+){0,2})(?:[\s,.;:!?…-]+\1\b){2,}", re.IGNORECASE | re.UNICODE
+)
+_PUNCT_RUN = re.compile(r"([,;:])(?:\s*[,;:])+")
+_SPACE_BEFORE_PUNCT = re.compile(r"\s+([,.;:!?…])")
+
+
+def clean(text: str) -> str:
+    """Remove obvious recognition garbage from a pt/en segment, keeping the real speech."""
+    t = text.replace("�", "")
+    # Meetings are in Portuguese or English: letters from other alphabets are recognition
+    # errors (香港, 아주, кк).
+    t = "".join(c for c in t if not (c.isalpha() and _script(c) != "LATIN"))
+    t = _NUMBER_CHAIN.sub(" ", t)
+    t = _NUMBER_RUN.sub(" ", t)
+    t = _REPEAT.sub(r"\1", t)
+    t = _PUNCT_RUN.sub(r"\1", t)
+    t = re.sub(r"\.{4,}", "...", t)
+    t = _SPACE_BEFORE_PUNCT.sub(r"\1", t)
+    return re.sub(r"\s{2,}", " ", t).strip(" ,;:")
