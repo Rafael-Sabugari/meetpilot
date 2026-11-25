@@ -12,6 +12,7 @@ Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - ✅ Assistant window redesigned as a futuristic HUD: animated energy core (faster while thinking, red on error), corner brackets, moving grid, scanlines, neon glass messages, source chips, an equalizer while processing, a terminal-style prompt and a key legend. Motion is off with "reduce motion".
 - ✅ Fixed: with newer WebKit/Chromium, `scrollIntoView` returns a Promise; effects that returned it crashed React on the first question (assistant and "Perguntar"). The effects now return nothing.
 - ✅ Tests: backend +2; frontend 101.
+- ✅ Fixed (owner's Mac): ⌘⇧Space opened another app → the assistant shortcut is now ⌃⇧Space (Control+Shift+Space) on every platform.
 
 ## ✅ Completed — Shortcut assistant, "JARVIS by text" (2026-11-24)
 
