@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.ai.context import ContextSegment
 from app.brain.ai import suggestions_json, summarize_meeting
-from app.brain.search import Hit, MemoryDoc, recent, search
-from app.db.models import Memory, UsageRecord
+from app.brain.embeddings import Embedder, Vector, pack, unpack
+from app.brain.search import Hit, MemoryDoc, hybrid, recent, split_passages
+from app.db.models import Memory, MemoryVectors, UsageRecord
 from app.providers.llm.base import LLMError, LLMProvider
 
 log = logging.getLogger("meetpilot.brain")
@@ -19,31 +20,95 @@ log = logging.getLogger("meetpilot.brain")
 MAX_DOCS = 2_000
 
 
-def to_doc(m: Memory) -> MemoryDoc:
+def to_doc(m: Memory, vectors: Sequence[Vector] = ()) -> MemoryDoc:
     text = "\n\n".join(p for p in (m.summary, m.details) if p.strip())
-    return MemoryDoc(m.id, m.kind, m.title, m.occurred_at, text)
+    return MemoryDoc(m.id, m.kind, m.title, m.occurred_at, text, tuple(vectors))
 
 
-async def load_docs(db: AsyncSession, user_id: str) -> list[MemoryDoc]:
+async def load_docs(db: AsyncSession, user_id: str, model: str | None = None) -> list[MemoryDoc]:
+    """Ready memories, newest first, with their passage vectors when `model` matches."""
     rows = await db.execute(
-        select(Memory)
+        select(Memory, MemoryVectors)
+        .outerjoin(MemoryVectors, MemoryVectors.memory_id == Memory.id)
         .where(Memory.user_id == user_id, Memory.status == "ready")
         .order_by(Memory.occurred_at.desc())
         .limit(MAX_DOCS)
     )
-    return [to_doc(m) for m in rows.scalars()]
+    return [
+        to_doc(m, unpack(v.data) if v is not None and model and v.model == model else ())
+        for m, v in rows.all()
+    ]
 
 
-def find(docs: Sequence[MemoryDoc], query: str, limit: int = 8) -> list[Hit]:
-    """Best passages, or the newest memories when the question has nothing to match
+async def query_vector(embedder: Embedder | None, text: str) -> Vector | None:
+    if embedder is None or not text.strip():
+        return None
+    try:
+        vecs = await embedder.embed([text[:2_000]], wait=False)
+    except Exception:
+        log.warning("query embedding failed", exc_info=True)
+        return None
+    return vecs[0] if vecs else None
+
+
+def find(
+    docs: Sequence[MemoryDoc], query: str, limit: int = 8, qvec: Vector | None = None
+) -> list[Hit]:
+    """Best passages by words and meaning, or the newest memories when nothing matches
     ("o que aconteceu ontem?")."""
-    hits = search(docs, query, limit=limit)
+    hits = hybrid(docs, query, qvec, limit=limit)
     return hits or recent(docs, min(limit, 5))
 
 
-def relevant_for_meeting(docs: Sequence[MemoryDoc], text: str, limit: int = 4) -> list[Hit]:
+def relevant_for_meeting(
+    docs: Sequence[MemoryDoc], text: str, limit: int = 4, qvec: Vector | None = None
+) -> list[Hit]:
     """Memories for a live answer: only clear matches (no filler when nothing fits)."""
-    return search(docs, text, limit=limit, strict=True)
+    return hybrid(docs, text, qvec, limit=limit, strict=True)
+
+
+async def index_memory(
+    sessionmaker: async_sessionmaker[AsyncSession], embedder: Embedder, memory_id: str
+) -> None:
+    """Embed a memory's passages (after it is created or changed)."""
+    async with sessionmaker() as db:
+        m = await db.get(Memory, memory_id)
+        if m is None or m.status != "ready":
+            return
+        doc = to_doc(m)
+        texts = [f"{p.title}\n{p.text}" for p in split_passages(doc)]
+    try:
+        vectors = await embedder.embed(texts)
+    except Exception:
+        log.warning("memory embedding failed", exc_info=True)
+        return
+    if len(vectors) != len(texts):
+        return
+    async with sessionmaker() as db:
+        if await db.get(Memory, memory_id) is None:
+            return
+        row = await db.get(MemoryVectors, memory_id)
+        if row is None:
+            db.add(MemoryVectors(memory_id=memory_id, model=embedder.name, data=pack(vectors)))
+        else:
+            row.model = embedder.name
+            row.data = pack(vectors)
+        await db.commit()
+
+
+async def index_missing(sessionmaker: async_sessionmaker[AsyncSession], embedder: Embedder) -> int:
+    """Embed every ready memory without vectors for the current model (startup backfill)."""
+    async with sessionmaker() as db:
+        rows = await db.execute(
+            select(Memory.id)
+            .outerjoin(MemoryVectors, MemoryVectors.memory_id == Memory.id)
+            .where(Memory.status == "ready")
+            .where((MemoryVectors.memory_id.is_(None)) | (MemoryVectors.model != embedder.name))
+        )
+        ids = [r[0] for r in rows.all()]
+    for memory_id in ids:
+        await index_memory(sessionmaker, embedder, memory_id)
+    return len(ids)
 
 
 def meter(
@@ -81,6 +146,7 @@ async def remember_meeting(
     title: str | None,
     language: str,
     started_at: datetime,
+    embedder: Embedder | None = None,
 ) -> None:
     """Summarize a finished meeting into its memory row (runs after the response)."""
     try:
@@ -121,3 +187,5 @@ async def remember_meeting(
         )
         await db.commit()
     log.info("meeting memory saved", extra={"memory_id": memory_id})
+    if embedder is not None:
+        await index_memory(sessionmaker, embedder, memory_id)

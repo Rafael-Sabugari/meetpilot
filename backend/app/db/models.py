@@ -2,7 +2,17 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, new_id, utcnow
@@ -109,3 +119,16 @@ class SuggestionFeedback(TimestampMixin, Base):
     answer: Mapped[str] = mapped_column(Text)
     rating: Mapped[int] = mapped_column(Integer)  # +1 or -1
     note: Mapped[str] = mapped_column(Text, default="")
+
+
+class MemoryVectors(TimestampMixin, Base):
+    """Embeddings of a memory's passages for semantic search (a separate table, so existing
+    SQLite databases only gain a table)."""
+
+    __tablename__ = "memory_vectors"
+
+    memory_id: Mapped[str] = mapped_column(
+        ForeignKey("memories.id", ondelete="CASCADE"), primary_key=True
+    )
+    model: Mapped[str] = mapped_column(String(200))
+    data: Mapped[bytes] = mapped_column(LargeBinary)

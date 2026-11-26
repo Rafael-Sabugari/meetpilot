@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     copilot_max_context_chars: int = 60_000
     # Room for a long spoken answer plus its translation.
     copilot_max_output_tokens: int = 2_000
+    # Second brain: semantic search with a local multilingual embedding model (downloaded
+    # once, ~220 MB). Off = word search (BM25) only.
+    brain_semantic_search: bool = True
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     # Automatic suggestions: minimum seconds between two auto answers and cap per minute.
     copilot_auto_min_interval_seconds: float = 3.0
     copilot_auto_max_per_minute: int = 10

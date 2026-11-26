@@ -180,6 +180,7 @@ async def finish_meeting(
                 title=m.title,
                 language=m.language,
                 started_at=m.created_at,
+                embedder=request.app.state.embedder,
             )
     return out
 

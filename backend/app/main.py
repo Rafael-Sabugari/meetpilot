@@ -4,6 +4,7 @@ MeetPilot never joins meetings. This service only ever receives audio that the u
 desktop app captured locally after explicit user action.
 """
 
+import asyncio
 import logging
 import time
 import uuid
@@ -17,7 +18,9 @@ from app.ai.router import router as copilot_router
 from app.api.v1 import health
 from app.auth.router import router as auth_router
 from app.auth.security import TokenService
+from app.brain.embeddings import Embedder, FastEmbedder
 from app.brain.router import router as brain_router
+from app.brain.service import index_missing
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.base import Base
@@ -38,6 +41,7 @@ def create_app(
     settings: Settings | None = None,
     stt_provider: StreamingSTTProvider | None = None,
     llm_provider: LLMProvider | None = None,
+    embedder: Embedder | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -49,7 +53,15 @@ def create_app(
         if engine.url.get_backend_name() == "sqlite":
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+        backfill: asyncio.Task[int] | None = None
+        if app.state.embedder is not None:
+            # Index memories saved before semantic search (or with another model).
+            backfill = asyncio.create_task(
+                index_missing(app.state.sessionmaker, app.state.embedder)
+            )
         yield
+        if backfill is not None and not backfill.done():
+            backfill.cancel()
         await engine.dispose()
 
     if settings.jwt_secret is None and settings.env == "development":
@@ -67,6 +79,11 @@ def create_app(
     app.state.sessionmaker = make_sessionmaker(engine)
     app.state.tokens = TokenService(settings)
     app.state.active_streams = ActiveStreams()
+    app.state.embedder = embedder or (
+        FastEmbedder(settings.embedding_model)
+        if settings.brain_semantic_search and settings.env != "test"
+        else None
+    )
     app.state.stt_provider = stt_provider or make_stt_provider(settings)
     app.state.llm_provider = llm_provider or make_llm_provider(settings)
     # Suggested answers may use a stronger model (anthropic_answer_model).

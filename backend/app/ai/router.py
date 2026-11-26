@@ -9,7 +9,7 @@ from app.auth.deps import DB, CurrentUser
 from app.auth.ratelimit import RateLimiter
 from app.brain.examples import examples_for
 from app.brain.search import render
-from app.brain.service import load_docs, relevant_for_meeting
+from app.brain.service import load_docs, query_vector, relevant_for_meeting
 from app.core.config import Settings
 from app.db.models import UsageRecord
 from app.meetings.router import owned_meeting
@@ -94,10 +94,12 @@ async def copilot(
     )
     memory: str | None = None
     if body.use_memory:
-        docs = await load_docs(db, user.id)
+        embedder = request.app.state.embedder
+        docs = await load_docs(db, user.id, embedder.name if embedder else None)
         recent = " ".join(s.text for s in body.transcript[-3:])
         query = f"{body.question or ''} {body.question or ''} {recent}"
-        memory = render(relevant_for_meeting(docs, query), 8_000) or None
+        qvec = await query_vector(embedder, body.question or recent)
+        memory = render(relevant_for_meeting(docs, query, qvec=qvec), 8_000) or None
     try:
         result = await ask(
             provider,

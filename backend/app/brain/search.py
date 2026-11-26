@@ -60,6 +60,8 @@ class MemoryDoc:
     title: str
     occurred_at: datetime
     text: str
+    # One embedding per passage (split_passages order), when semantic search is on.
+    vectors: tuple[tuple[float, ...], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -178,3 +180,48 @@ def render(hits: Sequence[Hit], max_chars: int) -> str:
 
 def _attr(text: str) -> str:
     return " ".join(text.split()).replace('"', "'")[:200]
+
+
+# -- hybrid: words + meaning ----------------------------------------------------------------
+
+# Cosine similarity (multilingual MiniLM) above which a passage clearly relates to the query.
+SEMANTIC_STRICT = 0.6
+_RRF_K = 60
+
+
+def hybrid(
+    docs: Iterable[MemoryDoc],
+    query: str,
+    query_vector: Sequence[float] | None,
+    *,
+    limit: int = 6,
+    strict: bool = False,
+    now: datetime | None = None,
+) -> list[Hit]:
+    """BM25 and semantic similarity combined by reciprocal rank fusion. Without vectors this
+    is plain BM25. `strict` keeps clear matches only (by words or by meaning)."""
+    from app.brain.embeddings import cosine
+
+    docs = list(docs)
+    words = search(docs, query, limit=40, strict=strict, now=now)
+    if not query_vector:
+        return words[:limit]
+    scored: list[tuple[float, Passage]] = []
+    for d in docs:
+        parts = split_passages(d)
+        if len(d.vectors) != len(parts):
+            continue  # not indexed yet (or indexed with another model)
+        for p, v in zip(parts, d.vectors, strict=True):
+            scored.append((cosine(query_vector, v), p))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    meaning = [(c, p) for c, p in scored[:40] if not strict or c >= SEMANTIC_STRICT]
+    fused: dict[tuple[str, str], tuple[float, Passage]] = {}
+    for rank, h in enumerate(words):
+        key = (h.passage.memory_id, h.passage.text)
+        fused[key] = (1 / (_RRF_K + rank), h.passage)
+    for rank, (_, p) in enumerate(meaning):
+        key = (p.memory_id, p.text)
+        prev = fused.get(key, (0.0, p))[0]
+        fused[key] = (prev + 1 / (_RRF_K + rank), p)
+    ranked = sorted(fused.values(), key=lambda x: x[0], reverse=True)
+    return [Hit(p, score) for score, p in ranked[:limit]]

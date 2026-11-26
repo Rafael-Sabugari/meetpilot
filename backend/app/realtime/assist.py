@@ -28,8 +28,9 @@ from app.ai.copilot import Scenario, Tone, ask, translate_answer
 from app.ai.question_check import check as check_question
 from app.ai.questions import AutoAnswerPolicy, AutoMode, assess, should_answer, worth_checking
 from app.ai.translation import needs_translation, same_text, translate
+from app.brain.embeddings import Embedder
 from app.brain.search import MemoryDoc, render
-from app.brain.service import relevant_for_meeting
+from app.brain.service import query_vector, relevant_for_meeting
 from app.providers.llm.base import LLMError, LLMProvider, LLMResult
 from app.realtime.events import EventType, TranscriptSegment
 
@@ -109,7 +110,9 @@ class LiveAssist:
         memory: Sequence[MemoryDoc] = (),
         on_settings: Callable[[LiveSettings], None] | None = None,
         examples: Callable[[str, str], Awaitable[str | None]] | None = None,
+        embedder: Embedder | None = None,
     ) -> None:
+        self.embedder = embedder
         # (scenario, question) -> the User's rated suggestions to imitate/avoid, or None.
         self.examples = examples
         self.memory = list(memory)
@@ -164,12 +167,13 @@ class LiveAssist:
             log.warning("rated examples unavailable", exc_info=True)
             return None
 
-    def memory_for(self, question: str) -> str | None:
+    async def memory_for(self, question: str) -> str | None:
         """Earlier meetings and notes that clearly relate to this question (or None)."""
         if not self.settings.use_memory or not self.memory:
             return None
         recent = " ".join(s.text for s in list(self.context)[-3:])
-        hits = relevant_for_meeting(self.memory, f"{question} {question} {recent}")
+        qvec = await query_vector(self.embedder, question)
+        hits = relevant_for_meeting(self.memory, f"{question} {question} {recent}", qvec=qvec)
         return render(hits, MAX_LIVE_MEMORY_CHARS) or None
 
     # -- inputs -------------------------------------------------------------------------
@@ -375,7 +379,7 @@ class LiveAssist:
                     max_output_tokens=self.max_output_tokens,
                     user_context=self.settings.user_context,
                     earlier=list(self.history),
-                    memory=self.memory_for(question),
+                    memory=await self.memory_for(question),
                     examples=await self.examples_for(question),
                     on_partial=partial,
                 )

@@ -17,6 +17,7 @@ dependencies = [
   "websockets>=17.4",
   "email-validator>=2",
   "httpx>=0.28",
+  "fastembed>=0.9.1",
 ]
 
 [dependency-groups]

@@ -15,6 +15,12 @@ Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
   - Judge 4.12 → 4.17.
   - Rules 62/64 → 64/64.
   - Median latency 3.8 s → 3.1 s.
+- ✅ Semantic search in the second brain: a local multilingual embedding model (fastembed, paraphrase-multilingual-MiniLM-L12-v2, about 220 MB, downloaded once).
+  - Passage vectors are stored in `memory_vectors`. Search fuses BM25 and cosine similarity by reciprocal rank; strict mode keeps clear matches by words or cosine ≥ 0.6.
+  - Applies to ask, briefing, memory search and live suggestions.
+  - Memories are indexed when saved, plus a startup backfill.
+  - Queries never wait for the model: until it is loaded they use words only.
+  - Not tested against the real model here, because the sandbox cannot reach Hugging Face. Tested with a fake embedder.
 - ✅ Faster turn-taking: a complete question from the others (ends with "?", 4+ words, not dangling like "ou…?") ends their turn at once. It no longer waits for the 1.5 s silence gap, which saves about 1.5 s per question.
   - Every answer now logs `answer timing` (time to first text and total, no text) so speed can be measured over real meetings.
 - ✅ Privacy: noise-test strings taken from a real meeting were replaced with neutral text. Old commits still contain three short fragments.

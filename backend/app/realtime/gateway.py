@@ -530,7 +530,8 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
         usage = await summary(db, settings, user)
         copilot_used = await count_this_period(db, user, "copilot_request")
         # Second brain: memories the live answers may draw on (searched locally per answer).
-        memory_docs = await load_docs(db, user.id)
+        embedder = app.state.embedder
+        memory_docs = await load_docs(db, user.id, embedder.name if embedder else None)
 
     local = first.get("stt") == "local"
     if usage.remaining_seconds <= 0 and not local:
@@ -572,6 +573,7 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
             ),
             utterance_gap=settings.copilot_utterance_gap_seconds,
             memory=memory_docs,
+            embedder=embedder,
             examples=_examples_loader(sm, user.id),
             on_settings=lambda s: active.remember.__setitem__(meeting.id, s.remember),
         ),

@@ -3,17 +3,18 @@
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 
 from app.auth.deps import DB, CurrentUser
 from app.auth.ratelimit import RateLimiter
 from app.brain.ai import ask_brain, briefing, suggestions_json, suggestions_list
-from app.brain.search import search
-from app.brain.service import find, load_docs, meter, to_doc
+from app.brain.search import hybrid
+from app.brain.service import find, index_memory, load_docs, meter, query_vector
 from app.db.base import utcnow
-from app.db.models import Memory, SuggestionFeedback, User
+from app.db.models import Memory, MemoryVectors, SuggestionFeedback, User
 from app.providers.llm.base import LLMError, LLMProvider
 
 router = APIRouter(prefix="/brain", tags=["brain"])
@@ -102,7 +103,7 @@ async def _owned(db: DB, memory_id: str, user: User) -> Memory:
 
 @router.get("/memories", response_model=list[MemoryOut])
 async def list_memories(
-    user: CurrentUser, db: DB, q: str | None = None, limit: int = 100
+    request: Request, user: CurrentUser, db: DB, q: str | None = None, limit: int = 100
 ) -> list[MemoryOut]:
     limit = max(1, min(limit, 500))
     rows = await db.execute(
@@ -112,16 +113,26 @@ async def list_memories(
     if q and q.strip():
         by_id = {m.id: m for m in memories}
         ranked: list[str] = []
-        docs = [to_doc(m) for m in memories if m.status == "ready"]
-        for hit in search(docs, q, limit=limit * 3):
+        embedder = request.app.state.embedder
+        docs = await load_docs(db, user.id, embedder.name if embedder else None)
+        qvec = await query_vector(embedder, q)
+        for hit in hybrid(docs, q, qvec, limit=limit * 3, strict=qvec is not None):
             if hit.passage.memory_id not in ranked:
                 ranked.append(hit.passage.memory_id)
         memories = [by_id[i] for i in ranked]
     return [_out(m) for m in memories[:limit]]
 
 
+def _reindex(request: Request, background: BackgroundTasks, memory_id: str) -> None:
+    embedder = request.app.state.embedder
+    if embedder is not None:
+        background.add_task(index_memory, request.app.state.sessionmaker, embedder, memory_id)
+
+
 @router.post("/memories", response_model=MemoryOut, status_code=status.HTTP_201_CREATED)
-async def create_note(body: NoteIn, user: CurrentUser, db: DB) -> MemoryOut:
+async def create_note(
+    body: NoteIn, request: Request, background: BackgroundTasks, user: CurrentUser, db: DB
+) -> MemoryOut:
     m = Memory(
         user_id=user.id,
         kind="note",
@@ -134,6 +145,7 @@ async def create_note(body: NoteIn, user: CurrentUser, db: DB) -> MemoryOut:
     )
     db.add(m)
     await db.commit()
+    _reindex(request, background, m.id)
     return _out(m)
 
 
@@ -143,7 +155,14 @@ async def get_memory(memory_id: str, user: CurrentUser, db: DB) -> MemoryOut:
 
 
 @router.patch("/memories/{memory_id}", response_model=MemoryOut)
-async def update_memory(memory_id: str, body: MemoryPatch, user: CurrentUser, db: DB) -> MemoryOut:
+async def update_memory(
+    memory_id: str,
+    body: MemoryPatch,
+    request: Request,
+    background: BackgroundTasks,
+    user: CurrentUser,
+    db: DB,
+) -> MemoryOut:
     m = await _owned(db, memory_id, user)
     if body.title is not None:
         m.title = " ".join(body.title.split())
@@ -154,12 +173,16 @@ async def update_memory(memory_id: str, body: MemoryPatch, user: CurrentUser, db
     if body.suggestions is not None:
         m.suggestions = suggestions_json([s.strip()[:400] for s in body.suggestions if s.strip()])
     await db.commit()
+    if body.title is not None or body.summary is not None or body.details is not None:
+        _reindex(request, background, m.id)
     return _out(m)
 
 
 @router.delete("/memories/{memory_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_memory(memory_id: str, user: CurrentUser, db: DB) -> Response:
-    await db.delete(await _owned(db, memory_id, user))
+    m = await _owned(db, memory_id, user)
+    await db.execute(sa_delete(MemoryVectors).where(MemoryVectors.memory_id == m.id))
+    await db.delete(m)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -175,8 +198,9 @@ async def _run(
     if not _limiter.hit(user.id):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many brain requests")
     provider: LLMProvider = request.app.state.answer_llm_provider
-    docs = await load_docs(db, user.id)
-    hits = find(docs, query)
+    embedder = request.app.state.embedder
+    docs = await load_docs(db, user.id, embedder.name if embedder else None)
+    hits = find(docs, query, qvec=await query_vector(embedder, query))
     try:
         if isinstance(body, AskIn):
             result = await ask_brain(
