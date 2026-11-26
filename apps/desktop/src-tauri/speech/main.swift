@@ -59,13 +59,22 @@ final class AppleTranscriber {
         }
         locale = loc
         // The system keeps models only for languages an app has reserved.
-        if !(await AssetInventory.reservedLocales.contains(loc)) {
-            _ = try await AssetInventory.reserve(locale: loc)
+        var reserved = await AssetInventory.reservedLocales.contains(loc)
+        if !reserved {
+            // Works whether this SDK's reserve(locale:) returns Bool or nothing.
+            let result: Any = try await AssetInventory.reserve(locale: loc)
+            reserved = (result as? Bool) ?? true
         }
         let probe = SpeechTranscriber(locale: loc, transcriptionOptions: [], reportingOptions: [], attributeOptions: [])
         // Downloads Apple's on-device model for this language the first time.
-        if let request = try await AssetInventory.assetInstallationRequest(supporting: [probe]) {
-            try await request.downloadAndInstall()
+        do {
+            if let request = try await AssetInventory.assetInstallationRequest(supporting: [probe]) {
+                try await request.downloadAndInstall()
+            }
+        } catch {
+            let all = await AssetInventory.reservedLocales.map(\.identifier).joined(separator: ",")
+            throw NSError(domain: "meetpilot", code: 4, userInfo: [NSLocalizedDescriptionKey:
+                "\(error.localizedDescription) [locale \(loc.identifier), reserved=\(reserved), all reserved: \(all)]"])
         }
     }
 
