@@ -1,0 +1,89 @@
+{
+  "profile": "PERSONA FICTÍCIA PARA TESTES. Sou o Alex, desenvolvedor Salesforce sênior (6 anos). Certificações: Platform Developer I e II, Application Architect.\nNa Northwind (2022–2025) migrei 2 milhões de registros de um ERP legado com Bulk API 2.0 em 3 fins de semana, sem perda de dados, com validação por amostragem e rollback planejado.\nIntegrei Salesforce com SAP via Platform Events e Apex REST; reduzi o tempo de sincronização de pedidos de 15 minutos para menos de 1 minuto.\nIncidente: em 2024 uma trigger não bulkificada estourou o limite de SOQL numa carga de 50 mil leads; eu reverti a carga, refatorei para um handler bulkificado com Queueable e criei teste com 200 registros. Desde então todo PR passa por checklist de bulk.\nConflito: discordei de um arquiteto que queria tudo síncrono; propus uma prova de conceito com Platform Events, medimos e o time adotou.\nPretensão: R$ 18 mil CLT. Disponível para começar em janeiro.",
+  "cases": [
+    {
+      "id": "int-governor",
+      "scenario": "interview",
+      "question": "Como você lida com governor limits em triggers?",
+      "transcript": [["system", "Alex, uma pergunta técnica: como você lida com governor limits em triggers?"]],
+      "expect": {"must_any": ["bulk", "handler", "queueable", "lote"], "max_sentences": 7}
+    },
+    {
+      "id": "int-incident",
+      "scenario": "interview",
+      "question": "Me conta de um incidente em produção que você resolveu.",
+      "transcript": [["system", "Me conta de um incidente em produção que você resolveu."]],
+      "expect": {"must_any": ["50 mil", "SOQL", "trigger"], "must_not": ["100 mil", "Heroku"], "max_sentences": 8}
+    },
+    {
+      "id": "int-conflict",
+      "scenario": "interview",
+      "question": "Já discordou de alguém mais sênior? Como foi?",
+      "transcript": [["system", "Já discordou de alguém mais sênior? Como foi?"]],
+      "expect": {"must_any": ["arquiteto", "Platform Events", "prova de conceito"], "max_sentences": 7}
+    },
+    {
+      "id": "int-salary",
+      "scenario": "interview",
+      "question": "Qual a sua pretensão salarial?",
+      "transcript": [["system", "Pra fechar, qual a sua pretensão salarial?"]],
+      "expect": {"must_any": ["18"], "must_not": ["20 mil", "15 mil"], "max_sentences": 4}
+    },
+    {
+      "id": "int-english",
+      "scenario": "interview",
+      "question": "How would you design an integration between Salesforce and SAP for orders?",
+      "transcript": [["system", "Let's switch to English. How would you design an integration between Salesforce and SAP for orders?"]],
+      "expect": {"language": "en", "must_any": ["Platform Events", "event", "REST"], "max_sentences": 8}
+    },
+    {
+      "id": "int-hypothetical",
+      "scenario": "interview",
+      "question": "Se um batch começa a falhar com UNABLE_TO_LOCK_ROW, o que você faz?",
+      "transcript": [["system", "Imagina que um batch começa a falhar com UNABLE_TO_LOCK_ROW. O que você faz?"]],
+      "expect": {"must_any": ["lock", "lote", "batch size", "tamanho do lote", "ordenar", "retry", "reprocess"], "max_sentences": 8}
+    },
+    {
+      "id": "meet-ambientes",
+      "scenario": "meeting",
+      "question": "Quem vocês acham que deveria cuidar da criação dessas sandboxes, a gente ou o time deles?",
+      "transcript": [
+        ["system", "Então pessoal, sobre os ambientes: o cliente só tem produção hoje. A gente precisa de dev e homologação, e os dados têm que vir mascarados."],
+        ["system", "Quem vocês acham que deveria cuidar da criação dessas sandboxes, a gente ou o time deles?"]
+      ],
+      "earlier": [["Qual a ordem das dúvidas?", "Concordo com a ordem. Dados primeiro, depois ambiente."], ["E a reunião com arquitetos?", "Concordo com a ideia de uma reunião entre os arquitetos."]],
+      "expect": {"must_any": ["sandbox", "mascar"], "no_agree_opener": true, "max_sentences": 7}
+    },
+    {
+      "id": "meet-pauta",
+      "scenario": "meeting",
+      "question": "O que a gente leva de pauta pra reunião com o arquiteto do cliente?",
+      "transcript": [
+        ["system", "Ontem a gente teve o primeiro papo com a Júlia, que é a PO do cliente. Eles ainda não têm nada técnico definido, a tecnologia é compartilhada com o grupo todo e estão priorizando a migração do ERP."],
+        ["system", "A integração vai passar pelo API gateway deles e tem um back-end legado de que a gente depende. Tem também o Data Cloud com criptografia."],
+        ["system", "O que a gente leva de pauta pra reunião com o arquiteto do cliente?"]
+      ],
+      "expect": {"must_any": ["gateway", "Data Cloud", "ambiente", "API"], "must_not": ["MuleSoft"], "max_sentences": 8}
+    },
+    {
+      "id": "meet-garbled",
+      "scenario": "meeting",
+      "question": "E aí, o que vocês acham?",
+      "transcript": [
+        ["system", "E aí, primeiro tema é negócio. Eu acho que alguém precisa passar uma visão de arquitetura banco de dados também, né? an, Has,AT, lee, other, O Carlos também, como negócio."],
+        ["system", "Deve ter uma estrutura grande lá, apesar de que está começando do zero. E aí, o que vocês acham?"]
+      ],
+      "expect": {"must_any": ["arquitetura", "dados", "Carlos"], "max_sentences": 7}
+    },
+    {
+      "id": "meet-data-lake",
+      "scenario": "meeting",
+      "question": "O Data Cloud pode ser o nosso Data Lake?",
+      "transcript": [
+        ["system", "O ideal seria o Data Cloud ser o nosso Data Lake, centralizar e unificar os dados do cliente."],
+        ["system", "Mas o Carlos disse que eles estão montando um Data Lake do lado deles. O Data Cloud pode ser o nosso Data Lake?"]
+      ],
+      "expect": {"must_any": ["Data Cloud", "Data Lake", "ingest", "duplic"], "max_sentences": 7}
+    }
+  ]
+}

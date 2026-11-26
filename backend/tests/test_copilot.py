@@ -498,7 +498,8 @@ def test_prompt_sizes_answers_to_the_question() -> None:
 
     rules = instructions("pt-BR", "natural")
     assert "Size the answer to what the question needs" in rules
-    assert "5-8 sentences" in rules and "answer every part" in rules
+    assert "4-6 sentences" in rules and "answer every part" in rules
+    assert "when in doubt, say less" in rules
     assert "rapidinho" in rules and "first 2 sentences" in rules
     assert "explica melhor" in rules
 

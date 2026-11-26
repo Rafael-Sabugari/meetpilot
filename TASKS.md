@@ -2,6 +2,21 @@
 
 Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked · ⏭ next · ⏸ parked
 
+## ✅ Completed — Quality loop: ratings + evaluation set (2026-11-26)
+
+- ✅ 👍/👎 on every suggestion card in the main window and the overlay, saved via `POST /brain/feedback`.
+  - Approved suggestions (related ones first, else the newest) and related rejected ones go to the copilot as `<rated_examples>` (rule 16), per scenario. The copilot learns the user's style without fine-tuning.
+- ✅ `backend/evals`: 10 cases with a fictional persona (the repository is public), 6 interview and 4 work-meeting cases based on a real meeting, anonymized.
+  - Real cases and the user's own profile live in `evals/private/`, and reports in `evals/reports/`. Both are git-ignored.
+  - Deterministic checks: language, no praise opener or offer at the end, no bullet lists, length, must and must-not facts, varied opener.
+  - A Haiku judge scores relevance, spoken style, grounding and usefulness (1–5).
+  - `--feedback` turns exported 👍 ratings into reference cases.
+- ✅ First use of the loop: the baseline had the weakest score on "spoken" (answers too long or list-like). Tightening the length rules gave:
+  - Judge 4.12 → 4.17.
+  - Rules 62/64 → 64/64.
+  - Median latency 3.8 s → 3.1 s.
+- ✅ Privacy: noise-test strings taken from a real meeting were replaced with neutral text. Old commits still contain three short fragments.
+
 ## ✅ Fixed — first real meeting with the second brain (2026-11-25)
 
 - ✅ Cleanup inside each local-Whisper segment (`noise.clean`) before the noise check. It removes letters from non-Latin alphabets, number loops ("1.1.1.1", "1. 1. 1. 1."), a word or short phrase repeated 3+ times ("do… do… do…", "ARQUI, ARQUI, ARQUI"), punctuation runs and U+FFFD. Real speech around them is kept. Counted as `cleaned` in the "local stt stats" log.

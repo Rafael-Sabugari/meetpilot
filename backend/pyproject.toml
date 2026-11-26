@@ -40,6 +40,7 @@ ignore = ["S101"]
 # Prompt text is kept readable as prose.
 "app/ai/copilot.py" = ["E501"]
 "app/brain/ai.py" = ["E501"]
+"evals/run.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

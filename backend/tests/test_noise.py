@@ -47,21 +47,20 @@ def test_clean_removes_garbage_inside_real_speech() -> None:
     from app.realtime.noise import clean
 
     assert (
-        clean("Acho que a casinha é do… do… do… do… do Zuliáco")
-        == "Acho que a casinha é do Zuliáco"
+        clean("Acho que a casinha é do… do… do… do… do Marcos") == "Acho que a casinha é do Marcos"
     )
     assert (
         clean("subiu o teste. 1.1.1.1.1.1. 1. 1. 1. 1. stakeholder") == "subiu o teste. stakeholder"
     )
     assert (
-        clean("an, Has,AT,,, lee,, other,, 香港,,,, O Bruno também")
-        == "an, Has,AT, lee, other, O Bruno também"
+        clean("an, Has,AT,,, lee,, other,, 香港,,,, O Carlos também")
+        == "an, Has,AT, lee, other, O Carlos também"
     )
     assert clean("ARQUITETURA, ARRADO, AQUI, ARQUI, ARQUI, ARQUI. Para o time") == (
         "ARQUITETURA, ARRADO, AQUI, ARQUI. Para o time"
     )
     assert clean("Normal. Normal. Normal. Eu tava olhando") == "Normal. Eu tava olhando"
-    assert clean("Essa coluna do Sensíria, pra mim") == "Essa coluna do Sensíria, pra mim"
+    assert clean("Essa coluna do Sensoria, pra mim") == "Essa coluna do Sensoria, pra mim"
     assert (
         clean("são 105 histórias e 3 ambientes, dev e prod")
         == "são 105 histórias e 3 ambientes, dev e prod"
