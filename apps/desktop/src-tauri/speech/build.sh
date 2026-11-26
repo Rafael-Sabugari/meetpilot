@@ -14,7 +14,9 @@ else
   echo "macOS SDK $SDK_VER: too old for SpeechAnalyzer, building the stub"
 fi
 mkdir -p binaries
+# Embedded Info.plist: macOS ties Apple's speech models to an app identity.
 xcrun swiftc -O ${FLAGS[@]+"${FLAGS[@]}"} -target "${TRIPLE%%-apple-darwin}-apple-macos13.0" \
+  -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker speech/Info.plist \
   speech/main.swift -o "binaries/meetpilot-speech-$TRIPLE"
 # Smoke test: it must start and answer with one JSON line (ready or a clear error).
 # (macOS has no `timeout`; stop it after 5 minutes if Apple's model download hangs.)

@@ -25,7 +25,7 @@ reqwest = { version = "0.13", default-features = false, features = ["native-tls"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 tokio = { version = "1", features = ["fs", "io-util", "rt"] }
 whisper-rs = { version = "0.16", optional = true }
-sherpa-rs = { version = "0.6.8", optional = true, default-features = false, features = ["download-binaries"] }
+sherpa-rs = { version = "0.6.8", optional = true, default-features = false, features = ["download-binaries", "static"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "fs"] }
