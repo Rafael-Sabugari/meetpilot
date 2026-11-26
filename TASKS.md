@@ -15,6 +15,8 @@ Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
   - Judge 4.12 → 4.17.
   - Rules 62/64 → 64/64.
   - Median latency 3.8 s → 3.1 s.
+- ✅ Faster turn-taking: a complete question from the others (ends with "?", 4+ words, not dangling like "ou…?") ends their turn at once. It no longer waits for the 1.5 s silence gap, which saves about 1.5 s per question.
+  - Every answer now logs `answer timing` (time to first text and total, no text) so speed can be measured over real meetings.
 - ✅ Privacy: noise-test strings taken from a real meeting were replaced with neutral text. Old commits still contain three short fragments.
 
 ## ✅ Fixed — first real meeting with the second brain (2026-11-25)

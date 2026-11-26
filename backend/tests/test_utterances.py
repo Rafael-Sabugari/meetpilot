@@ -124,3 +124,21 @@ def test_identical_translation_is_not_shown() -> None:
 
     assert same_text("Ótimo. E me conta pouco,", "otimo e me conta pouco")
     assert not same_text("Great, tell me more", "Ótimo, me conte mais")
+
+
+def test_a_complete_question_ends_the_turn_without_waiting() -> None:
+    from app.realtime.assist import ends_turn
+
+    async def run() -> list[tuple[str, dict[str, Any]]]:
+        a, events, _ = make()
+        await a.on_final(seg(1, "E como você lida com governor limits em triggers?"))
+        found = detected(events)  # no clock advance, no tick
+        await a.drain(5)
+        return found  # type: ignore[return-value]
+
+    assert len(asyncio.run(run())) == 1
+    assert ends_turn("Me conta, como foi a migração?")
+    assert not ends_turn("Data cloud ou?"), "dangling: they are still talking"
+    assert not ends_turn("Certo?"), "too short to be the whole question"
+    assert not ends_turn("Você usou Bulk API e?")
+    assert not ends_turn("Me conta como foi a migração.")

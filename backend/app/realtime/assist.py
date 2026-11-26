@@ -13,6 +13,7 @@ Nothing here is stored or logged; only usage counters are reported for metering.
 import asyncio
 import contextlib
 import logging
+import re
 import time
 import uuid
 from collections import deque
@@ -41,6 +42,17 @@ Emit = Callable[[EventType, dict[str, Any]], Awaitable[None]]
 MAX_REQUEST_CHARS = 4_000
 # Second-brain passages added to a live answer (about 2k tokens at most).
 MAX_LIVE_MEMORY_CHARS = 8_000
+
+
+_CONTINUES = re.compile(r"\b(ou|e|mas|or|and|but|tipo|like)\s*\?$", re.IGNORECASE)
+
+
+def ends_turn(text: str) -> bool:
+    """A complete question already ended the other person's turn: no need to wait for the
+    silence gap ("Como você lida com governor limits?"). Short or dangling ones still wait
+    ("ou…?", "e?")."""
+    t = text.strip()
+    return t.endswith("?") and len(t.split()) >= 4 and not _CONTINUES.search(t)
 
 
 class LiveSettings(BaseModel):
@@ -179,6 +191,7 @@ class LiveAssist:
             self._utterance_at = self.clock()
             if (
                 self.utterance_gap <= 0
+                or ends_turn(" ".join(s.text for s in self._utterance))
                 or len(self._utterance) >= self.MAX_UTTERANCE_PARTS
                 or sum(len(s.text) for s in self._utterance) >= self.MAX_UTTERANCE_CHARS
             ):
@@ -334,7 +347,12 @@ class LiveAssist:
             )
             self.copilot_remaining -= 1  # reserve before the call (parallel safety)
 
+            started = time.monotonic()
+            first_text: list[float] = []
+
             async def partial(text: str) -> None:
+                if not first_text:
+                    first_text.append(time.monotonic() - started)
                 await self.emit(EventType.ANSWER_DELTA, {"question_id": qid, "text": text})
 
             try:
@@ -379,6 +397,17 @@ class LiveAssist:
                 "copilot_request",
             )
             self.history.append((question, result.answer))
+            # For measuring speed over real meetings (no text is logged).
+            log.info(
+                "answer timing",
+                extra={
+                    "question_id": qid,
+                    "requested": requested,
+                    "first_text_s": round(first_text[0], 2) if first_text else None,
+                    "total_s": round(time.monotonic() - started, 2),
+                    "scenario": self.settings.scenario,
+                },
+            )
             await self.emit(
                 EventType.ANSWER_COMPLETED,
                 {
