@@ -296,3 +296,25 @@ meeting ends). Anthropic prompt caching marks the instructions and the user's co
   - Summaries, answers and briefings use the answer model (Sonnet).
   - One summary costs about one live suggestion.
   - Asking the brain costs about US$0.01 per question with Sonnet.
+
+
+### Quality loop and on-device AI (2026-11-26)
+
+- **Learning from ratings.**
+  - 👍/👎 per suggestion are stored in `suggestion_feedback`.
+  - Related approved examples (BM25, strict), or the newest ones for style, are added to each answer's prompt per scenario. No fine-tuning.
+- **Evals** (`backend/evals`).
+  - Public fictional cases, with private real cases git-ignored.
+  - Deterministic checks plus a Haiku judge, writing a Markdown report.
+  - Run on each prompt change to compare against the baseline.
+- **Semantic memory.**
+  - fastembed multilingual MiniLM runs on the user's server. Vectors are stored per passage in `memory_vectors`.
+  - BM25 and cosine results are fused by reciprocal rank.
+  - The query embedding never waits for the model download.
+- **Transcription engines on the Mac.**
+  - Whisper (whisper.cpp, Metal).
+  - Apple SpeechAnalyzer through the `meetpilot-speech` Swift sidecar: PCM in over stdin, JSON text out over stdout.
+  - Both sit behind the same `Recognizer` trait and segmenter. The accuracy test computes WER for each engine on one in-memory recording.
+- **Speaker labels.**
+  - CAM++ embeddings (sherpa-onnx, static libraries) are computed per final phrase of the meeting audio and grouped online by cosine.
+  - Only the label leaves the engine.

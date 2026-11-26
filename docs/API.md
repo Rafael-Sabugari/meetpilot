@@ -169,3 +169,21 @@ The ask and briefing endpoints are limited to 20 requests per minute per user.
 **Settings:** `copilot.settings` (WebSocket) adds `remember` (default false) and `use_memory` (default true). `POST /meetings/{id}/copilot` adds `use_memory` (default true).
 
 **Scenario (2026-11-24):** `copilot.settings` and `POST /meetings/{id}/copilot` accept `scenario`: `interview` (default; the user is the candidate) or `meeting` (collaborative work discussion; group questions also count as directed to the user).
+
+
+## 5. Quality loop, speakers and on-device engines (2026-11-26)
+
+**Ratings.**
+- `POST /brain/feedback` takes `{question_id, question, answer, rating: 1|-1|0, scenario, note?}` and returns 204. A rating of 0 removes the rating.
+- `GET /brain/feedback?limit=` lists rated suggestions (the source for `evals --feedback`).
+- Approved suggestions go to the copilot as `<rated_examples>` (prompt rule 16).
+
+**Speaker labels (local mode).**
+- `transcript.segment` (desktop → server) accepts `speaker: "Pessoa N"` for `source: "system"`.
+- It is echoed in `transcript.final`/`partial.speaker` and goes into prompts as `Others (Pessoa N)`.
+
+**Desktop commands.**
+- `speakers_status` returns `{available, model_id, downloaded, approx_bytes}`. Download the model with `local_download {id: model_id}`.
+- `apple_speech_status {language}` returns `{available, reason}`. Use model id `"apple"` in `transcription.model`.
+- `benchmark_start`, `benchmark_finish {reference, language, model}` and `benchmark_cancel` run the accuracy test. `benchmark_finish` returns `{audio_seconds, results: [{engine, label, wer, seconds, text, error}]}`.
+- `transcription.speakers: bool` turns speaker labels on (free mode).
