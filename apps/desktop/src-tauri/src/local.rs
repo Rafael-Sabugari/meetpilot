@@ -122,8 +122,9 @@ pub async fn local_download(
     state: State<'_, LocalState>,
     id: String,
 ) -> Result<(), CommandError> {
+    // Whisper models offered in the list, plus the voice model for speaker labels.
     let spec = spec(&id)
-        .filter(|s| s.listed)
+        .filter(|s| s.listed || s.id == meetpilot_local_stt::speakers::SPEAKER_MODEL.id)
         .ok_or_else(|| CommandError::new("unknown_model", format!("Unknown model {id}.")))?;
     let cancel = Arc::new(AtomicBool::new(false));
     {

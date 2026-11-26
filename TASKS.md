@@ -30,6 +30,8 @@ Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
   - The summary uses them and puts real names in when the conversation reveals them.
   - Only labels leave the engine; voice prints are never stored.
   - Real model test: same voice 0.93 vs another voice 0.35 (synthetic voices).
+  - Fixed: `local_download` refused the voice model because it is not one of the listed Whisper models ("Unknown model speaker-campplus-en").
+  - Confirmed on the owner's Mac: "Motor da Apple pronto neste Mac". The Apple engine works on real hardware.
 - ✅ Semantic search in the second brain: a local multilingual embedding model (fastembed, paraphrase-multilingual-MiniLM-L12-v2, about 220 MB, downloaded once).
   - Passage vectors are stored in `memory_vectors`. Search fuses BM25 and cosine similarity by reciprocal rank; strict mode keeps clear matches by words or cosine ≥ 0.6.
   - Applies to ask, briefing, memory search and live suggestions.
