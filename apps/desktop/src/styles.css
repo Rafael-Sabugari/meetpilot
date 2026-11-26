@@ -303,3 +303,13 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .rate__btn:hover { opacity: 1; filter: none; }
 .rate__btn--on { opacity: 1; filter: none; border-color: var(--ok); background: rgba(52, 245, 165, 0.1); }
 .rate__btn--down.rate__btn--on { border-color: var(--bad, #ff5d7a); background: rgba(255, 93, 122, 0.1); }
+
+/* Transcription accuracy test */
+.bench { margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--panel-2); }
+.bench summary { cursor: pointer; font-weight: 600; }
+.bench__text { margin: 8px 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: rgba(99, 160, 255, 0.06); line-height: 1.55; font-size: 15px; }
+.bench__table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13.5px; }
+.bench__table th, .bench__table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.bench__best td { background: rgba(52, 245, 165, 0.07); }
+.bench__heard { margin-top: 2px; }
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4d6d; box-shadow: 0 0 8px #ff4d6d; animation: jarvis-blink 1s steps(2, start) infinite; }

@@ -129,6 +129,15 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm }
       - run: npm ci && npm run build -w @meetpilot/desktop
+      # macOS: Apple's on-device transcription helper (needs the newest Xcode for the
+      # macOS 26 SDK; with an older one a stub is built and the app falls back to Whisper).
+      - name: Build Apple speech helper (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          NEWEST=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$NEWEST" ]; then sudo xcode-select -s "$NEWEST"; fi
+          xcodebuild -version
+          apps/desktop/src-tauri/speech/build.sh
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo build -p meetpilot-audio --bin mp-audio-probe --release

@@ -132,6 +132,13 @@ export function toCommandError(e: unknown): CommandError {
 
 export const api = {
   localModels: () => invoke<LocalModels>("local_models"),
+  /** Apple's on-device engine (macOS 26+): can it run for this meeting language? */
+  appleSpeechStatus: (language: string) => invoke<AppleStatus>("apple_speech_status", { language }),
+  /** Transcription test: record the microphone (memory only) while the user reads aloud. */
+  benchmarkStart: () => invoke<void>("benchmark_start"),
+  benchmarkFinish: (reference: string, language: string, model: string | null) =>
+    invoke<BenchResult>("benchmark_finish", { reference, language, model }),
+  benchmarkCancel: () => invoke<void>("benchmark_cancel"),
   localDownload: (id: string) => invoke<void>("local_download", { id }),
   localCancelDownload: (id: string) => invoke<void>("local_cancel_download", { id }),
   capabilities: () => invoke<CapabilitiesDto>("get_capabilities"),
@@ -179,3 +186,23 @@ export const events = {
   onCopilotPending: (cb: (p: PendingEvent) => void): Promise<UnlistenFn> =>
     listen<PendingEvent>("copilot://pending", (e) => cb(e.payload)),
 };
+
+export interface AppleStatus {
+  available: boolean;
+  reason: string | null;
+}
+
+export interface BenchEngineResult {
+  engine: "whisper" | "apple";
+  label: string;
+  /** Word error rate 0..1 (lower is better); null if the engine failed. */
+  wer: number | null;
+  seconds: number;
+  text: string;
+  error: string | null;
+}
+
+export interface BenchResult {
+  audio_seconds: number;
+  results: BenchEngineResult[];
+}

@@ -6,6 +6,7 @@
 //! meeting links, invitations or meeting-provider APIs.
 
 mod account;
+mod benchmark;
 mod brain;
 mod capture;
 mod copilot;
@@ -96,6 +97,7 @@ pub fn run() {
         )
         .manage(CaptureState::default())
         .manage(AccountState::default())
+        .manage(benchmark::BenchState::default())
         .setup(move |app| {
             app.manage(local::LocalState::new(app.handle()));
             for sc in [
@@ -141,6 +143,10 @@ pub fn run() {
             account::account_status,
             account::account_usage,
             local::local_models,
+            local::apple_speech_status,
+            benchmark::benchmark_start,
+            benchmark::benchmark_finish,
+            benchmark::benchmark_cancel,
             local::local_download,
             local::local_cancel_download,
             local::local_delete_model,

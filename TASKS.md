@@ -15,6 +15,13 @@ Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
   - Judge 4.12 → 4.17.
   - Rules 62/64 → 64/64.
   - Median latency 3.8 s → 3.1 s.
+- ✅ Apple on-device transcription (SpeechAnalyzer, macOS 26+) as a free engine next to Whisper. Choose "Apple (macOS 26)" in the model list.
+  - A small Swift helper `meetpilot-speech` ships inside the app and is built in CI with the newest Xcode. Audio goes to it over a pipe and only text comes back.
+  - It reuses our segmenter, partials and gain, so the rest is unchanged.
+  - If the SDK or the macOS version is too old, it reports "unavailable" and Whisper stays.
+- ✅ "Testar a precisão da transcrição": the user reads a fixed text (~20 s, with meeting jargon) and every on-device engine transcribes the same recording.
+  - The card shows the word error rate (WER) and time, and marks the best engine.
+  - The recording exists only in memory for the test and is dropped afterwards.
 - ✅ Semantic search in the second brain: a local multilingual embedding model (fastembed, paraphrase-multilingual-MiniLM-L12-v2, about 220 MB, downloaded once).
   - Passage vectors are stored in `memory_vectors`. Search fuses BM25 and cosine similarity by reciprocal rank; strict mode keeps clear matches by words or cosine ≥ 0.6.
   - Applies to ask, briefing, memory search and live suggestions.

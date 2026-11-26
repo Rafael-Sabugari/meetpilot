@@ -12,7 +12,9 @@ import { CopilotPanel } from "./CopilotPanel";
 import { LiveAssistOptions } from "./LiveAssistOptions";
 import { UserContextCard } from "./UserContextCard";
 import { BrainPanel } from "./BrainPanel";
-import { TranscriptionEngine, pickModel } from "./TranscriptionEngine";
+import { APPLE_MODEL, TranscriptionEngine, pickModel } from "./TranscriptionEngine";
+import { TranscriptionTest } from "./TranscriptionTest";
+import { useAppleSpeech } from "../hooks/useAppleSpeech";
 import { useLocalModels } from "../hooks/useLocalModels";
 import type { SttEngine } from "../lib/api";
 import { availableDevice, loadCapturePrefs, saveCapturePrefs } from "../lib/capturePrefs";
@@ -62,7 +64,9 @@ export function MainView({ t }: { t: T }) {
   const localModel = pickModel(localModels.data, localModelId);
   // Free transcription only where this build includes Whisper (macOS); otherwise Deepgram.
   const effectiveEngine: SttEngine = engine === "local" && localModels.data?.available ? "local" : "cloud";
-  const needsModel = transcribe && effectiveEngine === "local" && !localModel?.downloaded;
+  const apple = useAppleSpeech(effectiveEngine === "local" ? language : null);
+  const useApple = effectiveEngine === "local" && localModelId === APPLE_MODEL && !!apple?.available;
+  const needsModel = transcribe && effectiveEngine === "local" && !useApple && !localModel?.downloaded;
   // Apply remembered devices once the device list is known (fall back to default if absent).
   useEffect(() => {
     if (devices.outputs.length) setSystemDevice((d) => d || availableDevice(saved.systemDevice, devices.outputs.map((x) => x.id)));
@@ -115,7 +119,7 @@ export function MainView({ t }: { t: T }) {
               language,
               live: toLiveOptions(live),
               engine: effectiveEngine,
-              model: effectiveEngine === "local" ? (localModel?.id ?? null) : null,
+              model: effectiveEngine === "local" ? (useApple ? APPLE_MODEL : (localModel?.id ?? null)) : null,
               vocabulary: effectiveEngine === "local" ? vocabularyFrom(live.userContext) : null,
             }
           : null,
@@ -269,7 +273,16 @@ export function MainView({ t }: { t: T }) {
                 onDownload={localModels.download}
                 onCancel={localModels.cancel}
                 disabled={!transcribe || !canTranscribe}
+                apple={apple}
               />
+              {effectiveEngine === "local" && (
+                <TranscriptionTest
+                  t={t}
+                  language={language}
+                  model={useApple ? null : (localModel?.downloaded ? localModel.id : null)}
+                  disabled={state !== "idle"}
+                />
+              )}
             </div>
           </fieldset>
           {/* Outside the fieldset: these can be changed during a meeting. */}

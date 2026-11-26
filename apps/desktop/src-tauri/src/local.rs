@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use meetpilot_local_stt::apple::{locale_for, AppleSpeech};
 use meetpilot_local_stt::{
     spec, EngineConfig, LocalEvent, LocalTranscriber, ModelInfo, ModelStore, RecognizerFactory,
 };
@@ -20,7 +21,7 @@ use crate::capture::{CommandError, EVT_SERVER};
 pub const EVT_DOWNLOAD: &str = "localstt://download";
 
 pub struct LocalState {
-    store: ModelStore,
+    pub(crate) store: ModelStore,
     downloads: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
 
@@ -62,6 +63,50 @@ pub const fn engine_available() -> bool {
 
 /// The model offered by default: good accuracy in Portuguese and English, fast on Apple GPUs.
 pub const DEFAULT_MODEL: &str = "large-v3-turbo-q5_0";
+
+/// Pseudo model id for Apple's on-device engine (SpeechAnalyzer, macOS 26+).
+pub const APPLE_MODEL: &str = "apple";
+
+/// The `meetpilot-speech` helper shipped next to the app executable (macOS bundles only).
+pub fn apple_helper() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let path = exe.parent()?.join("meetpilot-speech");
+    path.is_file().then_some(path)
+}
+
+#[derive(Debug, Serialize)]
+pub struct AppleStatusDto {
+    pub available: bool,
+    /// Why not, in the engine's words (e.g. "needs macOS 26 or later").
+    pub reason: Option<String>,
+}
+
+/// Whether Apple's engine can run here for this meeting language (installs its model the
+/// first time, which can take a minute).
+#[tauri::command]
+pub async fn apple_speech_status(language: String) -> AppleStatusDto {
+    let Some(helper) = apple_helper() else {
+        return AppleStatusDto {
+            available: false,
+            reason: Some("Not included in this build.".into()),
+        };
+    };
+    let cfg = EngineConfig::for_language(&language);
+    let locale = locale_for(&cfg.whisper_language).to_string();
+    let res = tauri::async_runtime::spawn_blocking(move || AppleSpeech::check(&helper, &locale))
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()));
+    match res {
+        Ok(()) => AppleStatusDto {
+            available: true,
+            reason: None,
+        },
+        Err(e) => AppleStatusDto {
+            available: false,
+            reason: Some(e),
+        },
+    }
+}
 
 #[tauri::command]
 pub fn local_models(state: State<'_, LocalState>) -> LocalModelsDto {
@@ -188,7 +233,7 @@ pub fn rfc3339(secs: i64) -> String {
     )
 }
 
-fn factory(path: std::path::PathBuf, prompt: Option<String>) -> RecognizerFactory {
+pub fn factory(path: std::path::PathBuf, prompt: Option<String>) -> RecognizerFactory {
     #[cfg(feature = "local-whisper")]
     {
         meetpilot_local_stt::whisper::WhisperModel::factory_with_prompt(path, prompt)
@@ -209,23 +254,35 @@ pub fn start_local(
     vocabulary: Option<String>,
     uplink: Arc<StreamHandle>,
 ) -> Result<Arc<LocalTranscriber>, CommandError> {
-    if !engine_available() {
-        return Err(CommandError::new(
-            "unsupported",
-            "Free transcription on this computer is not included in this build.",
-        ));
-    }
-    let id = model.unwrap_or(DEFAULT_MODEL);
-    let spec = spec(id)
-        .ok_or_else(|| CommandError::new("unknown_model", format!("Unknown model {id}.")))?;
-    let store = &app.state::<LocalState>().store;
-    if !store.is_ready(spec) {
-        return Err(CommandError::new(
-            "model_missing",
-            "Download the speech model before using free transcription.",
-        ));
-    }
-    let path = store.path_of(spec);
+    let cfg = EngineConfig::for_language(language);
+    let recognizer = if model == Some(APPLE_MODEL) {
+        // Apple's on-device engine (macOS 26+): no model download in MeetPilot.
+        let helper = apple_helper().ok_or_else(|| {
+            CommandError::new(
+                "unsupported",
+                "Apple transcription is not included in this build.",
+            )
+        })?;
+        AppleSpeech::factory(helper, locale_for(&cfg.whisper_language).to_string())
+    } else {
+        if !engine_available() {
+            return Err(CommandError::new(
+                "unsupported",
+                "Free transcription on this computer is not included in this build.",
+            ));
+        }
+        let id = model.unwrap_or(DEFAULT_MODEL);
+        let spec = spec(id)
+            .ok_or_else(|| CommandError::new("unknown_model", format!("Unknown model {id}.")))?;
+        let store = &app.state::<LocalState>().store;
+        if !store.is_ready(spec) {
+            return Err(CommandError::new(
+                "model_missing",
+                "Download the speech model before using free transcription.",
+            ));
+        }
+        factory(store.path_of(spec), vocabulary)
+    };
 
     let seq = Arc::new(AtomicU64::new(0));
     let last_backlog = Mutex::new(Instant::now() - Duration::from_secs(60));
@@ -279,11 +336,7 @@ pub fn start_local(
         LocalEvent::Error(e) => warn("local_error", e),
     });
 
-    Ok(Arc::new(LocalTranscriber::start(
-        factory(path, vocabulary),
-        EngineConfig::for_language(language),
-        sink,
-    )))
+    Ok(Arc::new(LocalTranscriber::start(recognizer, cfg, sink)))
 }
 
 #[cfg(test)]

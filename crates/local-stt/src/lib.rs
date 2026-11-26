@@ -4,10 +4,12 @@
 //! (voice activity), runs the model on a background thread, and emits transcript segments
 //! in the same shape as the cloud path so the UI treats both alike.
 
+pub mod apple;
 pub mod engine;
 pub mod models;
 pub mod segmenter;
 pub mod text;
+pub mod wer;
 #[cfg(feature = "whisper")]
 pub mod whisper;
 
