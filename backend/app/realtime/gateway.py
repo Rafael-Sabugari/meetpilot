@@ -20,7 +20,7 @@ import logging
 import struct
 import time
 from collections import Counter, deque
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -31,6 +31,7 @@ from app.ai.context import ContextSegment
 from app.ai.copilot import MAX_EARLIER
 from app.ai.questions import AutoAnswerPolicy
 from app.auth.security import TokenError, TokenService
+from app.brain.examples import examples_for
 from app.brain.service import load_docs
 from app.core.config import Settings
 from app.db.models import Meeting, UsageRecord, User
@@ -486,6 +487,16 @@ async def _persist_usage(
         await db.commit()
 
 
+def _examples_loader(
+    sm: async_sessionmaker[AsyncSession], user_id: str
+) -> Callable[[str, str], Awaitable[str | None]]:
+    async def load(scenario: str, question: str) -> str | None:
+        async with sm() as db:
+            return await examples_for(db, user_id, scenario, question)
+
+    return load
+
+
 @router.websocket("/meetings/{meeting_id}/stream")
 async def stream(ws: WebSocket, meeting_id: str) -> None:
     app = ws.app
@@ -561,6 +572,7 @@ async def stream(ws: WebSocket, meeting_id: str) -> None:
             ),
             utterance_gap=settings.copilot_utterance_gap_seconds,
             memory=memory_docs,
+            examples=_examples_loader(sm, user.id),
             on_settings=lambda s: active.remember.__setitem__(meeting.id, s.remember),
         ),
     )

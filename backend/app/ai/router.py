@@ -7,6 +7,7 @@ from app.ai.context import ContextSegment, build_context
 from app.ai.copilot import Grounding, Mode, Scenario, Tone, ask, translate_answer
 from app.auth.deps import DB, CurrentUser
 from app.auth.ratelimit import RateLimiter
+from app.brain.examples import examples_for
 from app.brain.search import render
 from app.brain.service import load_docs, relevant_for_meeting
 from app.core.config import Settings
@@ -111,6 +112,7 @@ async def copilot(
             user_context=body.user_context,
             earlier=list(history),
             memory=memory,
+            examples=await examples_for(db, user.id, body.scenario, body.question or ""),
         )
     except LLMError as e:
         code = status.HTTP_503_SERVICE_UNAVAILABLE if e.retryable else status.HTTP_502_BAD_GATEWAY

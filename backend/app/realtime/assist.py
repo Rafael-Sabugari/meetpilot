@@ -96,7 +96,10 @@ class LiveAssist:
         utterance_gap: float = 1.5,
         memory: Sequence[MemoryDoc] = (),
         on_settings: Callable[[LiveSettings], None] | None = None,
+        examples: Callable[[str, str], Awaitable[str | None]] | None = None,
     ) -> None:
+        # (scenario, question) -> the User's rated suggestions to imitate/avoid, or None.
+        self.examples = examples
         self.memory = list(memory)
         self.on_settings = on_settings
         self.utterance_gap = utterance_gap
@@ -139,6 +142,15 @@ class LiveAssist:
         self.settings = LiveSettings.model_validate(data)
         if self.on_settings is not None:
             self.on_settings(self.settings)
+
+    async def examples_for(self, question: str) -> str | None:
+        if self.examples is None:
+            return None
+        try:
+            return await self.examples(self.settings.scenario, question)
+        except Exception:  # examples only improve style; never block an answer
+            log.warning("rated examples unavailable", exc_info=True)
+            return None
 
     def memory_for(self, question: str) -> str | None:
         """Earlier meetings and notes that clearly relate to this question (or None)."""
@@ -346,6 +358,7 @@ class LiveAssist:
                     user_context=self.settings.user_context,
                     earlier=list(self.history),
                     memory=self.memory_for(question),
+                    examples=await self.examples_for(question),
                     on_partial=partial,
                 )
             except LLMError as e:

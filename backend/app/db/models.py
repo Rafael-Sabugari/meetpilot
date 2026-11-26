@@ -92,3 +92,20 @@ class Memory(TimestampMixin, Base):
     details: Mapped[str] = mapped_column(Text, default="")
     # JSON list of facts about the User worth adding to "My context" (meetings only).
     suggestions: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class SuggestionFeedback(TimestampMixin, Base):
+    """A suggestion the User rated (thumbs up/down). Approved ones become examples the
+    copilot imitates; both feed the evaluation set. Saved only when the User rates."""
+
+    __tablename__ = "suggestion_feedback"
+    __table_args__ = (Index("ix_feedback_user_question", "user_id", "question_id", unique=True),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    question_id: Mapped[str] = mapped_column(String(64))
+    scenario: Mapped[str] = mapped_column(String(16), default="interview")
+    question: Mapped[str] = mapped_column(Text, default="")
+    answer: Mapped[str] = mapped_column(Text)
+    rating: Mapped[int] = mapped_column(Integer)  # +1 or -1
+    note: Mapped[str] = mapped_column(Text, default="")

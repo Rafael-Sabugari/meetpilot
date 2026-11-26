@@ -54,6 +54,9 @@ export const brain = {
       user_context: userContext,
       assistant,
     }),
+  /** 👍 = 1, 👎 = -1, 0 = remove. Approved suggestions become examples for the next ones. */
+  rate: (r: { question_id: string; question: string; answer: string; rating: -1 | 0 | 1; scenario: "interview" | "meeting" }) =>
+    api.brain<null>("POST", "brain/feedback", r),
   briefing: (topic: string, userContext: string | null) =>
     api.brain<BrainAnswer>("POST", "brain/briefing", { topic, user_context: userContext }),
 };

@@ -4,6 +4,8 @@ import type { MessageKey } from "../lib/i18n";
 import type { CopilotItem } from "../lib/copilot";
 import type { TranscriptState } from "../lib/transcript";
 import type { useCopilot } from "../hooks/useCopilot";
+import { brain } from "../lib/brain";
+import { loadLivePrefs } from "../lib/liveOptions";
 
 type T = (k: MessageKey) => string;
 
@@ -19,6 +21,49 @@ export function GroundingBadge({ t, grounding }: { t: T; grounding: Grounding })
   return (
     <span className={`pill pill--${tone}`} data-testid="grounding">
       {t(`copilot.grounding.${grounding}` as MessageKey)}
+    </span>
+  );
+}
+
+/** 👍/👎 for one suggestion: approved ones teach the copilot how you like to answer. */
+export function RateButtons({ t, item }: { t: T; item: CopilotItem }) {
+  const [rating, setRating] = useState<-1 | 0 | 1>(0);
+  const [failed, setFailed] = useState(false);
+  if (!item.answer) return null;
+  const answer = item.answer.answer;
+  const send = (value: -1 | 1) => {
+    const next = rating === value ? 0 : value;
+    const before = rating;
+    setRating(next);
+    setFailed(false);
+    brain
+      .rate({ question_id: item.id, question: item.question ?? "", answer, rating: next, scenario: loadLivePrefs().scenario })
+      .catch(() => {
+        setRating(before);
+        setFailed(true);
+      });
+  };
+  return (
+    <span className="rate" role="group" aria-label={t("copilot.rate")}>
+      <button
+        className={`rate__btn ${rating === 1 ? "rate__btn--on" : ""}`}
+        aria-pressed={rating === 1}
+        title={t("copilot.rate.up")}
+        aria-label={t("copilot.rate.up")}
+        onClick={() => send(1)}
+      >
+        👍
+      </button>
+      <button
+        className={`rate__btn ${rating === -1 ? "rate__btn--on rate__btn--down" : ""}`}
+        aria-pressed={rating === -1}
+        title={t("copilot.rate.down")}
+        aria-label={t("copilot.rate.down")}
+        onClick={() => send(-1)}
+      >
+        👎
+      </button>
+      {failed && <span className="error-text small">{t("copilot.rate.failed")}</span>}
     </span>
   );
 }
@@ -70,6 +115,7 @@ export function AnswerCard({ t, item, compact }: { t: T; item: CopilotItem; comp
             >
               {copied ? t("copilot.copied") : t("copilot.copy")}
             </button>
+            <RateButtons t={t} item={item} />
           </div>
           {!compact && item.answer.explanation && <p className="muted small">{item.answer.explanation}</p>}
           {!compact && item.answer.missing_info.length > 0 && (

@@ -296,3 +296,10 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 @media (prefers-reduced-motion: reduce) {
   .jarvis *, .jarvis::before { animation: none !important; }
 }
+
+/* 👍/👎 on suggestions */
+.rate { display: inline-flex; gap: 4px; align-items: center; margin-left: auto; }
+.rate__btn { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 2px 7px; font-size: 13px; cursor: pointer; opacity: 0.55; filter: grayscale(0.7); transition: opacity 0.15s, filter 0.15s, border-color 0.15s; }
+.rate__btn:hover { opacity: 1; filter: none; }
+.rate__btn--on { opacity: 1; filter: none; border-color: var(--ok); background: rgba(52, 245, 165, 0.1); }
+.rate__btn--down.rate__btn--on { border-color: var(--bad, #ff5d7a); background: rgba(255, 93, 122, 0.1); }

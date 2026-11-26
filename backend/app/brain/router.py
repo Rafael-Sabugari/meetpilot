@@ -13,7 +13,7 @@ from app.brain.ai import ask_brain, briefing, suggestions_json, suggestions_list
 from app.brain.search import search
 from app.brain.service import find, load_docs, meter, to_doc
 from app.db.base import utcnow
-from app.db.models import Memory, User
+from app.db.models import Memory, SuggestionFeedback, User
 from app.providers.llm.base import LLMError, LLMProvider
 
 router = APIRouter(prefix="/brain", tags=["brain"])
@@ -228,3 +228,85 @@ async def ask(body: AskIn, request: Request, user: CurrentUser, db: DB) -> Answe
 @router.post("/briefing", response_model=AnswerOut)
 async def make_briefing(body: BriefingIn, request: Request, user: CurrentUser, db: DB) -> AnswerOut:
     return await _run(request, user, db, body.topic, "brain_briefing", body)
+
+
+# -- ratings (👍/👎) ---------------------------------------------------------------------------
+
+
+class FeedbackIn(BaseModel):
+    question_id: str = Field(min_length=1, max_length=64)
+    question: str = Field(default="", max_length=4_000)
+    answer: str = Field(min_length=1, max_length=8_000)
+    # 1 = 👍, -1 = 👎, 0 = remove the rating.
+    rating: Literal[-1, 0, 1]
+    scenario: Literal["interview", "meeting"] = "interview"
+    note: str = Field(default="", max_length=500)
+
+
+class FeedbackOut(BaseModel):
+    question_id: str
+    scenario: str
+    question: str
+    answer: str
+    rating: int
+    note: str
+    created_at: datetime
+
+
+@router.post("/feedback", status_code=status.HTTP_204_NO_CONTENT)
+async def rate_suggestion(body: FeedbackIn, user: CurrentUser, db: DB) -> Response:
+    """Rate a suggestion. Approved ones become examples for future suggestions."""
+    row = (
+        await db.execute(
+            select(SuggestionFeedback).where(
+                SuggestionFeedback.user_id == user.id,
+                SuggestionFeedback.question_id == body.question_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if body.rating == 0:
+        if row is not None:
+            await db.delete(row)
+    elif row is None:
+        db.add(
+            SuggestionFeedback(
+                user_id=user.id,
+                question_id=body.question_id,
+                scenario=body.scenario,
+                question=body.question.strip(),
+                answer=body.answer.strip(),
+                rating=body.rating,
+                note=body.note.strip(),
+            )
+        )
+    else:
+        row.rating = body.rating
+        row.answer = body.answer.strip()
+        row.question = body.question.strip()
+        row.scenario = body.scenario
+        row.note = body.note.strip()
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/feedback", response_model=list[FeedbackOut])
+async def list_feedback(user: CurrentUser, db: DB, limit: int = 500) -> list[FeedbackOut]:
+    """Rated suggestions, newest first (also the source of the evaluation set)."""
+    rows = await db.execute(
+        select(SuggestionFeedback)
+        .where(SuggestionFeedback.user_id == user.id)
+        .order_by(SuggestionFeedback.created_at.desc())
+        .limit(max(1, min(limit, 2_000)))
+    )
+    return [
+        FeedbackOut(
+            question_id=f.question_id,
+            scenario=f.scenario,
+            question=f.question,
+            answer=f.answer,
+            rating=f.rating,
+            note=f.note,
+            created_at=f.created_at,
+        )
+        for f in rows.scalars()
+    ]

@@ -259,3 +259,53 @@ def test_meeting_scenario_reaches_answers_and_question_checks(tmp_path: Path) ->
         body = {"question": "E agora?", "scenario": "meeting"}
         c.post(f"/api/v1/meetings/{mid}/copilot", json=body, headers=auth)
         assert "WORKING MEETING" in llm.calls[-1]["instructions"]
+
+
+def test_rated_suggestions_become_examples(tmp_path: Path) -> None:
+    from app.brain.examples import Example, pick, render_examples
+
+    llm = FakeLLMProvider()
+    with make_client(tmp_path, llm) as c:
+        auth = register_and_login(c)
+
+        def rate(qid: str, q: str, a: str, rating: int, scenario: str = "interview") -> None:
+            body = {
+                "question_id": qid,
+                "question": q,
+                "answer": a,
+                "rating": rating,
+                "scenario": scenario,
+            }
+            r = c.post("/api/v1/brain/feedback", json=body, headers=auth)
+            assert r.status_code == 204, r.text
+
+        rate("q1", "Como você lida com governor limits?", "Bulkifico tudo, curto e direto.", 1)
+        rate("q2", "Fale sobre governor limits em triggers", "Boa pergunta! Então...", -1)
+        rate("q3", "Qual a sua cor favorita?", "Azul.", 1, "meeting")
+        rate("q2", "Fale sobre governor limits em triggers", "Boa pergunta! Então...", -1)
+        listed = c.get("/api/v1/brain/feedback", headers=auth).json()
+        assert {f["question_id"] for f in listed} == {"q1", "q2", "q3"}
+        other = register_and_login(c, "bia@example.com")
+        assert c.get("/api/v1/brain/feedback", headers=other).json() == []
+
+        mid = c.post("/api/v1/meetings", json={"language": "pt-BR"}, headers=auth).json()[
+            "meeting"
+        ]["id"]
+        body = {"question": "E os governor limits?", "transcript": []}
+        c.post(f"/api/v1/meetings/{mid}/copilot", json=body, headers=auth)
+        text = llm.calls[-1]["input_text"]
+        assert "<rated_examples>" in text and "Bulkifico tudo" in text
+        assert "<rejected>" in text and "Boa pergunta!" in text
+        assert "Azul." not in text, "examples come from the same scenario"
+        assert "16. <rated_examples>" in llm.calls[-1]["instructions"]
+
+        rate("q1", "Como você lida com governor limits?", "x", 0)
+        rate("q2", "x", "x", 0)
+        c.post(f"/api/v1/meetings/{mid}/copilot", json=body, headers=auth)
+        assert "<rated_examples>" not in llm.calls[-1]["input_text"]
+
+    # Nothing related: the newest approved answers still show the User's style.
+    examples = [Example("Sobre o projeto X", "Curto e direto.", 1), Example("a", "b", -1)]
+    good, bad = pick(examples, "pergunta sem relação")
+    assert good == [examples[0]] and bad == []
+    assert render_examples([], []) is None
