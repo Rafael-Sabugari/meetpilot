@@ -146,7 +146,20 @@ pub fn segment_message(
     is_final: bool,
     language: Option<&str>,
 ) -> serde_json::Value {
-    serde_json::json!({
+    segment_message_with_speaker(source, text, start_ms, end_ms, is_final, language, None)
+}
+
+/// Same, with who is speaking among the others ("Pessoa 1"), when known.
+pub fn segment_message_with_speaker(
+    source: &str,
+    text: &str,
+    start_ms: u64,
+    end_ms: u64,
+    is_final: bool,
+    language: Option<&str>,
+    speaker: Option<&str>,
+) -> serde_json::Value {
+    let mut msg = serde_json::json!({
         "type": "transcript.segment",
         "source": source,
         "text": text,
@@ -154,7 +167,11 @@ pub fn segment_message(
         "end_ms": end_ms,
         "is_final": is_final,
         "language": language,
-    })
+    });
+    if let Some(s) = speaker {
+        msg["speaker"] = serde_json::Value::from(s);
+    }
+    msg
 }
 
 /// Build the `copilot.settings` control message from a JSON object of options.

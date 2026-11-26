@@ -15,6 +15,7 @@ import { BrainPanel } from "./BrainPanel";
 import { APPLE_MODEL, TranscriptionEngine, pickModel } from "./TranscriptionEngine";
 import { TranscriptionTest } from "./TranscriptionTest";
 import { useAppleSpeech } from "../hooks/useAppleSpeech";
+import { useSpeakers } from "../hooks/useSpeakers";
 import { useLocalModels } from "../hooks/useLocalModels";
 import type { SttEngine } from "../lib/api";
 import { availableDevice, loadCapturePrefs, saveCapturePrefs } from "../lib/capturePrefs";
@@ -60,6 +61,8 @@ export function MainView({ t }: { t: T }) {
   const [language, setLanguage] = useState<Language>(saved.language as Language);
   const [engine, setEngine] = useState<SttEngine>(saved.engine);
   const [localModelId, setLocalModelId] = useState(saved.localModel);
+  const [speakersOn, setSpeakersOn] = useState(saved.speakers);
+  const speakers = useSpeakers();
   const localModels = useLocalModels();
   const localModel = pickModel(localModels.data, localModelId);
   // Free transcription only where this build includes Whisper (macOS); otherwise Deepgram.
@@ -76,8 +79,8 @@ export function MainView({ t }: { t: T }) {
     if (saved.protectOverlay) api.setOverlayProtection(true).then(setProtect).catch(() => {});
   }, [saved]);
   useEffect(() => {
-    saveCapturePrefs({ useSystem, useMic, systemDevice, micDevice, transcribe, language, protectOverlay: protect, engine, localModel: localModelId });
-  }, [useSystem, useMic, systemDevice, micDevice, transcribe, language, protect, engine, localModelId]);
+    saveCapturePrefs({ useSystem, useMic, systemDevice, micDevice, transcribe, language, protectOverlay: protect, engine, localModel: localModelId, speakers: speakersOn });
+  }, [useSystem, useMic, systemDevice, micDevice, transcribe, language, protect, engine, localModelId, speakersOn]);
   const [showConsent, setShowConsent] = useState(false);
   const [live, setLive] = useState<LivePrefs>(loadLivePrefs);
   // Bumped when a meeting ends so the second brain shows its new memory.
@@ -121,6 +124,7 @@ export function MainView({ t }: { t: T }) {
               engine: effectiveEngine,
               model: effectiveEngine === "local" ? (useApple ? APPLE_MODEL : (localModel?.id ?? null)) : null,
               vocabulary: effectiveEngine === "local" ? vocabularyFrom(live.userContext) : null,
+              speakers: effectiveEngine === "local" && speakersOn && !!speakers.status?.downloaded,
             }
           : null,
     });
@@ -275,6 +279,31 @@ export function MainView({ t }: { t: T }) {
                 disabled={!transcribe || !canTranscribe}
                 apple={apple}
               />
+              {effectiveEngine === "local" && speakers.status?.available && (
+                <div className="speakers">
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={speakersOn}
+                      disabled={!transcribe || !canTranscribe}
+                      onChange={(e) => setSpeakersOn(e.target.checked)}
+                      data-testid="speakers-toggle"
+                    />
+                    {t("stt.speakers")}
+                  </label>
+                  {speakersOn && !speakers.status.downloaded && (
+                    speakers.downloading !== null ? (
+                      <span className="muted small">{t("stt.downloading")} {speakers.downloading}%</span>
+                    ) : (
+                      <button className="btn btn--small" onClick={() => void speakers.download()}>
+                        ⤓ {t("stt.speakers.download")} (~{Math.round(speakers.status.approx_bytes / 1048576)} MB)
+                      </button>
+                    )
+                  )}
+                  {speakers.error && <p className="error small">{speakers.error}</p>}
+                  <p className="muted small">{t("stt.speakers.hint")}</p>
+                </div>
+              )}
               {effectiveEngine === "local" && (
                 <TranscriptionTest
                   t={t}

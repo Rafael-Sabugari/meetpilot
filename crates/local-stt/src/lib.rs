@@ -8,6 +8,7 @@ pub mod apple;
 pub mod engine;
 pub mod models;
 pub mod segmenter;
+pub mod speakers;
 pub mod text;
 pub mod wer;
 #[cfg(feature = "whisper")]

@@ -27,6 +27,8 @@ pub struct ModelSpec {
     pub sha1: &'static str,
     /// Offered in the app (tiny is only used by automated tests).
     pub listed: bool,
+    /// Full download URL when the file is not in the whisper.cpp repository.
+    pub url: Option<&'static str>,
 }
 
 const MIB: u64 = 1024 * 1024;
@@ -38,6 +40,7 @@ pub const MODELS: &[ModelSpec] = &[
         approx_bytes: 142 * MIB,
         sha1: "465707469ff3a37a2b9b8d8f89f2f99de7299dac",
         listed: true,
+        url: None,
     },
     ModelSpec {
         id: "small",
@@ -45,6 +48,7 @@ pub const MODELS: &[ModelSpec] = &[
         approx_bytes: 466 * MIB,
         sha1: "55356645c2b361a969dfd0ef2c5a50d530afd8d5",
         listed: true,
+        url: None,
     },
     ModelSpec {
         id: "large-v3-turbo-q5_0",
@@ -52,6 +56,7 @@ pub const MODELS: &[ModelSpec] = &[
         approx_bytes: 547 * MIB,
         sha1: "e050f7970618a659205450ad97eb95a18d69c9ee",
         listed: true,
+        url: None,
     },
     ModelSpec {
         id: "tiny",
@@ -59,11 +64,14 @@ pub const MODELS: &[ModelSpec] = &[
         approx_bytes: 75 * MIB,
         sha1: "bd577a113a864445d4c299885e0cb97d4ba92b5f",
         listed: false,
+        url: None,
     },
 ];
 
 pub fn spec(id: &str) -> Option<&'static ModelSpec> {
-    MODELS.iter().find(|m| m.id == id)
+    MODELS.iter().find(|m| m.id == id).or_else(|| {
+        (id == crate::speakers::SPEAKER_MODEL.id).then_some(&crate::speakers::SPEAKER_MODEL)
+    })
 }
 
 /// Default recommendation: Apple Silicon runs the best model on the GPU; elsewhere (CPU
@@ -183,7 +191,10 @@ impl ModelStore {
         cancel: Arc<AtomicBool>,
     ) -> Result<PathBuf, ModelError> {
         tokio::fs::create_dir_all(&self.dir).await.map_err(io)?;
-        let url = format!("{}{}", self.base_url, spec.file);
+        let url = spec
+            .url
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("{}{}", self.base_url, spec.file));
         let resp = reqwest::Client::builder()
             .user_agent(concat!("MeetPilot-Desktop/", env!("CARGO_PKG_VERSION")))
             .build()

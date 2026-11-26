@@ -125,12 +125,13 @@ export function transcriptReducer(state: TranscriptState, action: TranscriptActi
 export function recentLines(
   state: TranscriptState,
   n: number,
-): { text: string; source: string; final: boolean; translation?: string }[] {
-  const lines: { text: string; source: string; final: boolean; translation?: string }[] = state.finals.map((s) => ({
+): { text: string; source: string; final: boolean; translation?: string; speaker?: string | null }[] {
+  const lines: { text: string; source: string; final: boolean; translation?: string; speaker?: string | null }[] = state.finals.map((s) => ({
     text: s.text,
     source: s.source,
     final: true,
     translation: state.translations[s.segment_id],
+    ...(s.speaker ? { speaker: s.speaker } : {}),
   }));
   for (const p of Object.values(state.partials)) {
     if (p) lines.push({ text: p.text, source: p.source, final: false });
@@ -149,7 +150,8 @@ export function formatClock(ms: number): string {
 export function transcriptAsText(state: TranscriptState, labels: Record<string, string>): string {
   return state.finals
     .map((s) => {
-      const line = `[${formatClock(s.start_ms)}] ${labels[s.source] ?? s.source}: ${s.text}`;
+      const who = (s.source === "system" && s.speaker) || labels[s.source] || s.source;
+      const line = `[${formatClock(s.start_ms)}] ${who}: ${s.text}`;
       const tr = state.translations[s.segment_id];
       return tr ? `${line}\n        → ${tr}` : line;
     })

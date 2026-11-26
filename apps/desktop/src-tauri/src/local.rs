@@ -12,7 +12,7 @@ use meetpilot_local_stt::apple::{locale_for, AppleSpeech};
 use meetpilot_local_stt::{
     spec, EngineConfig, LocalEvent, LocalTranscriber, ModelInfo, ModelStore, RecognizerFactory,
 };
-use meetpilot_realtime::{segment_message, StreamHandle};
+use meetpilot_realtime::{segment_message_with_speaker, StreamHandle};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -245,6 +245,49 @@ pub fn factory(path: std::path::PathBuf, prompt: Option<String>) -> RecognizerFa
     }
 }
 
+/// Whether this build can tell the others apart ("Pessoa 1", "Pessoa 2").
+pub const fn speakers_available() -> bool {
+    cfg!(feature = "diarization")
+}
+
+/// The speaker model, when it is downloaded (see `local_download` with its id).
+fn speaker_factory(
+    app: &AppHandle,
+) -> Option<meetpilot_local_stt::speakers::SpeakerEmbedderFactory> {
+    #[cfg(feature = "diarization")]
+    {
+        let spec = &meetpilot_local_stt::speakers::SPEAKER_MODEL;
+        let store = &app.state::<LocalState>().store;
+        store
+            .is_ready(spec)
+            .then(|| meetpilot_local_stt::speakers::sherpa::factory(store.path_of(spec)))
+    }
+    #[cfg(not(feature = "diarization"))]
+    {
+        let _ = app;
+        None
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SpeakersDto {
+    pub available: bool,
+    pub model_id: &'static str,
+    pub downloaded: bool,
+    pub approx_bytes: u64,
+}
+
+#[tauri::command]
+pub fn speakers_status(state: State<'_, LocalState>) -> SpeakersDto {
+    let spec = &meetpilot_local_stt::speakers::SPEAKER_MODEL;
+    SpeakersDto {
+        available: speakers_available(),
+        model_id: spec.id,
+        downloaded: state.store.is_ready(spec),
+        approx_bytes: spec.approx_bytes,
+    }
+}
+
 /// Start the on-device engine for one capture. Recognized text goes to the server through
 /// `uplink`; local warnings (falling behind) are shown in the app.
 pub fn start_local(
@@ -252,6 +295,7 @@ pub fn start_local(
     language: &str,
     model: Option<&str>,
     vocabulary: Option<String>,
+    speakers: bool,
     uplink: Arc<StreamHandle>,
 ) -> Result<Arc<LocalTranscriber>, CommandError> {
     let cfg = EngineConfig::for_language(language);
@@ -307,13 +351,14 @@ pub fn start_local(
                 meetpilot_local_stt::Source::System => "system",
                 meetpilot_local_stt::Source::Microphone => "microphone",
             };
-            uplink.send_segment(segment_message(
+            uplink.send_segment(segment_message_with_speaker(
                 source,
                 &s.text,
                 s.start_ms,
                 s.end_ms,
                 s.is_final,
                 s.language.as_deref(),
+                s.speaker.as_deref(),
             ));
         }
         LocalEvent::Backlog { pending_finals } => {
@@ -336,7 +381,13 @@ pub fn start_local(
         LocalEvent::Error(e) => warn("local_error", e),
     });
 
-    Ok(Arc::new(LocalTranscriber::start(recognizer, cfg, sink)))
+    let speaker_model = if speakers { speaker_factory(app) } else { None };
+    Ok(Arc::new(LocalTranscriber::start_with_speakers(
+        recognizer,
+        speaker_model,
+        cfg,
+        sink,
+    )))
 }
 
 #[cfg(test)]

@@ -58,6 +58,10 @@ final class AppleTranscriber {
             throw NSError(domain: "meetpilot", code: 1, userInfo: [NSLocalizedDescriptionKey: "language not supported: \(localeId)"])
         }
         locale = loc
+        // The system keeps models only for languages an app has reserved.
+        if !(await AssetInventory.reservedLocales.contains(loc)) {
+            _ = try await AssetInventory.reserve(locale: loc)
+        }
         let probe = SpeechTranscriber(locale: loc, transcriptionOptions: [], reportingOptions: [], attributeOptions: [])
         // Downloads Apple's on-device model for this language the first time.
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [probe]) {

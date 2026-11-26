@@ -22,6 +22,13 @@ Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
 - ✅ "Testar a precisão da transcrição": the user reads a fixed text (~20 s, with meeting jargon) and every on-device engine transcribes the same recording.
   - The card shows the word error rate (WER) and time, and marks the best engine.
   - The recording exists only in memory for the test and is dropped afterwards.
+- ✅ Who is speaking among the others (free mode, opt-in "Identificar quem fala").
+  - Each finished phrase of the meeting audio gets a CAM++ voice embedding (sherpa-onnx, ~28 MB model downloaded once).
+  - Phrases are grouped online into "Pessoa 1/2/…" (cosine ≥ 0.45, at most 8 people; short phrases right after someone keep their label).
+  - Labels show in the transcript and the overlay, and reach the copilot ("Others (Pessoa 2)").
+  - The summary uses them and puts real names in when the conversation reveals them.
+  - Only labels leave the engine; voice prints are never stored.
+  - Real model test: same voice 0.93 vs another voice 0.35 (synthetic voices).
 - ✅ Semantic search in the second brain: a local multilingual embedding model (fastembed, paraphrase-multilingual-MiniLM-L12-v2, about 220 MB, downloaded once).
   - Passage vectors are stored in `memory_vectors`. Search fuses BM25 and cosine similarity by reciprocal rank; strict mode keeps clear matches by words or cosine ≥ 0.6.
   - Applies to ask, briefing, memory search and live suggestions.

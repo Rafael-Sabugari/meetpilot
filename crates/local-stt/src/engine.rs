@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 
 use crate::segmenter::{Segmenter, SegmenterConfig, Utterance};
+use crate::speakers::{Diarizer, SpeakerEmbedderFactory};
 use crate::text;
 
 /// Speech recognizer used by the worker thread (Whisper in production, fakes in tests).
@@ -168,6 +169,17 @@ pub struct LocalTranscriber {
 
 impl LocalTranscriber {
     pub fn start(factory: RecognizerFactory, cfg: EngineConfig, sink: EventSink) -> Self {
+        Self::start_with_speakers(factory, None, cfg, sink)
+    }
+
+    /// Like `start`, also labelling who is speaking among the others ("Pessoa 1"…) when
+    /// a speaker model is given. Speaker trouble never stops transcription.
+    pub fn start_with_speakers(
+        factory: RecognizerFactory,
+        speakers: Option<SpeakerEmbedderFactory>,
+        cfg: EngineConfig,
+        sink: EventSink,
+    ) -> Self {
         let shared = Arc::new(Shared {
             queue: Mutex::new(Queue::default()),
             cv: Condvar::new(),
@@ -179,7 +191,7 @@ impl LocalTranscriber {
         let worker = std::thread::Builder::new()
             .name("mp-local-stt".into())
             .spawn(move || {
-                run_worker(&s, factory);
+                run_worker(&s, factory, speakers);
                 (s.sink)(LocalEvent::Stopped);
                 let _ = done_tx.send(());
             })
@@ -269,7 +281,11 @@ impl Drop for LocalTranscriber {
     }
 }
 
-fn run_worker(shared: &Shared, factory: RecognizerFactory) {
+fn run_worker(
+    shared: &Shared,
+    factory: RecognizerFactory,
+    speakers: Option<SpeakerEmbedderFactory>,
+) {
     let mut recognizer = match factory() {
         Ok(r) => r,
         Err(e) => {
@@ -277,6 +293,13 @@ fn run_worker(shared: &Shared, factory: RecognizerFactory) {
             return;
         }
     };
+    let mut diarizer = speakers.and_then(|f| match f() {
+        Ok(e) => Some(Diarizer::new(e)),
+        Err(e) => {
+            (shared.sink)(LocalEvent::Error(format!("Speaker labels are off: {e}")));
+            None
+        }
+    });
     (shared.sink)(LocalEvent::Ready);
     let language = shared.cfg.whisper_language.clone();
     let label = shared.cfg.language_label.clone();
@@ -323,6 +346,13 @@ fn run_worker(shared: &Shared, factory: RecognizerFactory) {
                     started.elapsed().as_millis()
                 );
                 if let Some(text) = text::clean(&raw) {
+                    // Only the others' finished phrases (the microphone is the User).
+                    let speaker = match (&mut diarizer, job.source, u.is_final) {
+                        (Some(d), Source::System, true) => {
+                            d.speaker(&u.audio, u.start_ms(), u.end_ms())
+                        }
+                        _ => None,
+                    };
                     (shared.sink)(LocalEvent::Segment(LocalSegment {
                         segment_id: format!("{}-{}", job.source.as_str(), u.id),
                         source: job.source,
@@ -331,7 +361,7 @@ fn run_worker(shared: &Shared, factory: RecognizerFactory) {
                         start_ms: u.start_ms(),
                         end_ms: u.end_ms(),
                         is_final: u.is_final,
-                        speaker: None,
+                        speaker,
                     }));
                 }
             }

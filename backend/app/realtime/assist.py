@@ -183,7 +183,12 @@ class LiveAssist:
         if not text:
             return
         self.context.append(
-            ContextSegment(source=seg.source, text=text[:2_000], start_ms=seg.start_ms)
+            ContextSegment(
+                source=seg.source,
+                text=text[:2_000],
+                start_ms=seg.start_ms,
+                speaker=(seg.speaker or None) if seg.source == "system" else None,
+            )
         )
         if needs_translation(self.meeting_language, self.settings.translate_to):
             self._enqueue_translation(seg)

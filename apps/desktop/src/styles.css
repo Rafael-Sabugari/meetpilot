@@ -313,3 +313,11 @@ input[type="email"], input[type="password"], input:not([type]) { background: var
 .bench__best td { background: rgba(52, 245, 165, 0.07); }
 .bench__heard { margin-top: 2px; }
 .rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4d6d; box-shadow: 0 0 8px #ff4d6d; animation: jarvis-blink 1s steps(2, start) infinite; }
+
+/* Speaker labels among the others ("Pessoa 1", "Pessoa 2"…) */
+.line__who--1 { color: #7dd3fc; }
+.line__who--2 { color: #fca5a5; }
+.line__who--3 { color: #c4b5fd; }
+.line__who--4 { color: #fcd34d; }
+.line__who--5 { color: #86efac; }
+.line__who--6 { color: #f9a8d4; }

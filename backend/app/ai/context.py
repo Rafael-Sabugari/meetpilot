@@ -17,6 +17,8 @@ class ContextSegment(BaseModel):
     source: Source
     text: str = Field(max_length=2_000)
     start_ms: int = Field(ge=0)
+    # Who among the others said it ("Pessoa 1"), when the desktop could tell voices apart.
+    speaker: str | None = Field(default=None, max_length=40)
 
 
 @dataclass(frozen=True)
@@ -43,7 +45,13 @@ def build_context(segments: list[ContextSegment], budget_chars: int) -> BuiltCon
         text = " ".join(seg.text.split())
         if not text:
             continue
-        who = "User" if seg.source == "microphone" else "Others"
+        who = (
+            "User"
+            if seg.source == "microphone"
+            else f"Others ({seg.speaker})"
+            if seg.speaker
+            else "Others"
+        )
         line = f"[{_clock(seg.start_ms)}] {who}: {text}"
         if used + len(line) + 1 > budget_chars:
             break

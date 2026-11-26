@@ -23,6 +23,12 @@ export function linkLabel(t: T, link: LinkStatus | null): { text: string; tone: 
 
 const VIEWS: TranslationView[] = ["both", "translation", "original"];
 
+/** A stable colour per speaker label ("Pessoa 2" -> 2). */
+export function speakerTone(speaker: string): number {
+  const n = Number(speaker.replace(/\D+/g, ""));
+  return Number.isFinite(n) && n > 0 ? ((n - 1) % 6) + 1 : 1;
+}
+
 export function TranscriptPanel(props: {
   t: T;
   state: TranscriptState;
@@ -83,7 +89,9 @@ export function TranscriptPanel(props: {
           return (
             <div key={`${s.segment_id}-${s.end_ms}`} className={`line line--${s.source}${question ? " line--question" : ""}`}>
               <span className="line__time">{formatClock(s.start_ms)}</span>
-              <span className="line__who">{labels[s.source]}</span>
+              <span className={`line__who${s.speaker && s.source === "system" ? ` line__who--${speakerTone(s.speaker)}` : ""}`}>
+                {(s.source === "system" && s.speaker) || labels[s.source]}
+              </span>
               <span className="line__body">
                 {question && <span className="pill pill--accent small">{t("live.question")}</span>}{" "}
                 {showOriginal && <span>{s.text}</span>}

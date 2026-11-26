@@ -268,6 +268,9 @@ pub struct TranscriptionRequest {
     /// Names and terms likely to be said (free mode): spelling hints for Whisper.
     #[serde(default)]
     pub vocabulary: Option<String>,
+    /// Free mode: label who is speaking among the others ("Pessoa 1", "Pessoa 2").
+    #[serde(default)]
+    pub speakers: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -476,6 +479,7 @@ pub async fn start_capture(
                     t.vocabulary
                         .as_deref()
                         .map(|v| v.chars().take(2_000).collect()),
+                    t.speakers,
                     Arc::clone(&u.handle),
                 ) {
                     Ok(l) => u.local = Some(l),

@@ -60,6 +60,7 @@ async fn downloads_verifies_and_marks_ready() {
         approx_bytes: body.len() as u64,
         sha1: leak(hex_sha1(&body)),
         listed: false,
+        url: None,
     };
     let store = ModelStore::with_base_url(tmpdir("ok"), &base);
     let seen = Arc::new(AtomicU64::new(0));
@@ -98,6 +99,7 @@ async fn corrupted_download_is_rejected_and_removed() {
         approx_bytes: 50_000,
         sha1: "0000000000000000000000000000000000000000",
         listed: false,
+        url: None,
     };
     let store = ModelStore::with_base_url(tmpdir("bad"), &base);
     let err = store
@@ -120,6 +122,7 @@ async fn cancel_stops_and_cleans_up() {
         approx_bytes: 5_000_000,
         sha1: leak(hex_sha1(&body)),
         listed: false,
+        url: None,
     };
     let store = ModelStore::with_base_url(tmpdir("cancel"), &base);
     let cancel = Arc::new(AtomicBool::new(false));
@@ -151,6 +154,7 @@ async fn tampered_file_after_download_is_not_trusted() {
         approx_bytes: 10_000,
         sha1: leak(hex_sha1(&body)),
         listed: false,
+        url: None,
     };
     let store = ModelStore::with_base_url(tmpdir("tamper"), &base);
     store
@@ -184,6 +188,7 @@ async fn http_errors_are_reported() {
         approx_bytes: 1,
         sha1: "0000000000000000000000000000000000000000",
         listed: false,
+        url: None,
     };
     let store = ModelStore::with_base_url(tmpdir("404"), &format!("http://{addr}/"));
     let err = store

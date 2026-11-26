@@ -221,3 +221,22 @@ def test_user_can_ask_for_a_reply_to_what_others_said(tmp_path: Path) -> None:
         assert of(events, "answer.translated")
         sent = [x for x in llm.calls if x["schema_name"] == "copilot_answer"][-1]["input_text"]
         assert "the User asked for a reply" in sent
+
+
+def test_speaker_labels_reach_the_transcript_and_the_ai(tmp_path: Path) -> None:
+    """Local mode: 'Pessoa N' labels from the desktop go to the UI and into the prompt."""
+    c, llm = make_client(tmp_path)
+    with c:
+        auth = register_and_login(c)
+        a = segment("Bom dia, pessoal.", 0) | {"speaker": "Pessoa 1"}
+        b = segment("Rafael, como você faria a integração com o SAP?", 2000) | {
+            "speaker": "Pessoa 2"
+        }
+        mine = segment("Boa.", 4000, source="microphone") | {"speaker": "Pessoa 9"}
+        _, events = run(
+            c, auth, [{"type": "copilot.settings", "auto_suggestions": "all"}, a, b, mine]
+        )
+    finals = [e["payload"] for e in events if e["type"] == "transcript.final"]
+    assert [f.get("speaker") for f in finals] == ["Pessoa 1", "Pessoa 2", None]
+    prompts = [x["input_text"] for x in llm.calls if x["schema_name"] == "copilot_answer"]
+    assert prompts and "Others (Pessoa 2): Rafael, como você faria" in prompts[-1]

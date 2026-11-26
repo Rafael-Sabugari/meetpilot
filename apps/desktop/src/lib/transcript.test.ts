@@ -160,3 +160,23 @@ describe("questions split by the recognizer and same-language translations", () 
     expect(sameText("Great", "Ótimo")).toBe(false);
   });
 });
+
+describe("speaker labels", () => {
+  it("uses 'Pessoa N' for the others when known", async () => {
+    const { transcriptAsText, recentLines } = await import("./transcript");
+    const state = {
+      finals: [
+        { segment_id: "s1", source: "system", text: "Oi", start_ms: 0, end_ms: 500, is_final: true, language: null, speaker: "Pessoa 2" },
+        { segment_id: "m1", source: "microphone", text: "Olá", start_ms: 600, end_ms: 900, is_final: true, language: null, speaker: null },
+      ],
+      partials: {},
+      translations: {},
+      questions: [],
+      errors: [],
+      link: null,
+      provider: null,
+    } as never;
+    expect(transcriptAsText(state, { system: "Outros", microphone: "Você" })).toBe("[00:00] Pessoa 2: Oi\n[00:00] Você: Olá");
+    expect(recentLines(state, 2)[0].speaker).toBe("Pessoa 2");
+  });
+});

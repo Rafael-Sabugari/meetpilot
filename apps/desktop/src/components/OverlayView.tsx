@@ -140,7 +140,7 @@ export function OverlayView({ t }: { t: (k: MessageKey) => string }) {
             const tr = prefs.translationView !== "original" ? l.translation : undefined;
             return (
               <p key={i} className={l.final ? "" : "line--partial"}>
-                <span className="who">{l.source === "system" ? t("tx.others") : t("tx.you")}</span>
+                <span className="who">{l.source === "system" ? (l.speaker ?? t("tx.others")) : t("tx.you")}</span>
                 {(!tr || prefs.translationView === "both") && l.text}
                 {tr && <span className={prefs.translationView === "both" ? "line__tr" : ""}>{tr}</span>}
               </p>

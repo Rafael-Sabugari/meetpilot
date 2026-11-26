@@ -14,6 +14,8 @@ export interface CapturePrefs {
   engine: "cloud" | "local";
   /** Whisper model id; "" = the recommended one. */
   localModel: string;
+  /** Free mode: label who is speaking among the others ("Pessoa 1", "Pessoa 2"). */
+  speakers: boolean;
 }
 
 const KEY = "meetpilot.capture.v1";
@@ -30,6 +32,7 @@ export function defaultCapturePrefs(browserLanguage = "en"): CapturePrefs {
     protectOverlay: false,
     engine: "cloud",
     localModel: "",
+    speakers: false,
   };
 }
 
@@ -53,6 +56,7 @@ export function parseCapturePrefs(raw: string | null, browserLanguage = "en"): C
     protectOverlay: bool(v.protectOverlay, d.protectOverlay),
     engine: v.engine === "local" ? "local" : "cloud",
     localModel: typeof v.localModel === "string" ? v.localModel.slice(0, 64) : "",
+    speakers: bool(v.speakers, d.speakers),
   };
 }
 

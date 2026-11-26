@@ -73,6 +73,8 @@ class LocalSegmentIn(BaseModel):
     end_ms: int = Field(ge=0, le=86_400_000)
     is_final: bool
     language: str | None = Field(default=None, max_length=12)
+    # "Pessoa 1"… when the desktop tells the others' voices apart (local mode).
+    speaker: str | None = Field(default=None, max_length=40)
 
 
 SEQ_COLUMNS: tuple[tuple[AudioSource, str], ...] = (
@@ -360,6 +362,7 @@ class StreamSession:
             start_ms=seg.start_ms,
             end_ms=seg.end_ms,
             is_final=seg.is_final,
+            speaker=seg.speaker if seg.source == "system" else None,
         )
         kind = EventType.TRANSCRIPT_FINAL if seg.is_final else EventType.TRANSCRIPT_PARTIAL
         await self.emit(kind, out.model_dump())

@@ -144,6 +144,7 @@ pub fn run() {
             account::account_usage,
             local::local_models,
             local::apple_speech_status,
+            local::speakers_status,
             benchmark::benchmark_start,
             benchmark::benchmark_finish,
             benchmark::benchmark_cancel,

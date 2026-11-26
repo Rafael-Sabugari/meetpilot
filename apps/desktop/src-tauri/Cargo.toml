@@ -18,6 +18,8 @@ default = []
 # Free transcription with Whisper on this computer (Apple GPU). Enabled for macOS builds:
 # `tauri build --features local-whisper`. Needs CMake and a C++ compiler.
 local-whisper = ["meetpilot-local-stt/metal"]
+# Who is speaking among the others (speaker embeddings, sherpa-onnx). macOS builds.
+diarization = ["meetpilot-local-stt/diarization"]
 
 [dependencies]
 meetpilot-local-stt = { path = "../../../crates/local-stt" }

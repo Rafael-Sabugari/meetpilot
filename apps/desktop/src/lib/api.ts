@@ -96,6 +96,8 @@ export interface StartRequest {
     model?: string | null;
     /** Names and technical terms for the free (Whisper) engine's spelling. */
     vocabulary?: string | null;
+    /** Free mode: label who is speaking among the others ("Pessoa 1"…). */
+    speakers?: boolean;
   } | null;
 }
 
@@ -132,6 +134,8 @@ export function toCommandError(e: unknown): CommandError {
 
 export const api = {
   localModels: () => invoke<LocalModels>("local_models"),
+  /** Speaker labels among the others (free mode): availability and model download state. */
+  speakersStatus: () => invoke<SpeakersStatus>("speakers_status"),
   /** Apple's on-device engine (macOS 26+): can it run for this meeting language? */
   appleSpeechStatus: (language: string) => invoke<AppleStatus>("apple_speech_status", { language }),
   /** Transcription test: record the microphone (memory only) while the user reads aloud. */
@@ -205,4 +209,11 @@ export interface BenchEngineResult {
 export interface BenchResult {
   audio_seconds: number;
   results: BenchEngineResult[];
+}
+
+export interface SpeakersStatus {
+  available: boolean;
+  model_id: string;
+  downloaded: boolean;
+  approx_bytes: number;
 }

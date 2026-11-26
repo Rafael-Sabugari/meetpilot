@@ -17,4 +17,8 @@ mkdir -p binaries
 xcrun swiftc -O ${FLAGS[@]+"${FLAGS[@]}"} -target "${TRIPLE%%-apple-darwin}-apple-macos13.0" \
   speech/main.swift -o "binaries/meetpilot-speech-$TRIPLE"
 # Smoke test: it must start and answer with one JSON line (ready or a clear error).
-"binaries/meetpilot-speech-$TRIPLE" --check --locale pt-BR || true
+# (macOS has no `timeout`; stop it after 5 minutes if Apple's model download hangs.)
+"binaries/meetpilot-speech-$TRIPLE" --check --locale pt-BR &
+CHECK=$!
+( sleep 300 && kill "$CHECK" 2>/dev/null ) &
+wait "$CHECK" || true
