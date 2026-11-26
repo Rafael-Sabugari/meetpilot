@@ -54,6 +54,11 @@ final class AppleTranscriber {
     let locale: Locale
 
     init(localeId: String) async throws {
+        // Virtual machines and unsupported Macs have no SpeechTranscriber model at all.
+        guard await SpeechTranscriber.isAvailable else {
+            throw NSError(domain: "meetpilot", code: 5, userInfo: [NSLocalizedDescriptionKey:
+                "Apple's transcription is not available on this Mac (virtual machine or unsupported hardware)"])
+        }
         guard let loc = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: localeId)) else {
             throw NSError(domain: "meetpilot", code: 1, userInfo: [NSLocalizedDescriptionKey: "language not supported: \(localeId)"])
         }

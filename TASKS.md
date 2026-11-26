@@ -19,6 +19,7 @@ Last updated: 2026-11-24. Legend: ✅ done · 🔄 in progress · ⛔ blocked ·
   - A small Swift helper `meetpilot-speech` ships inside the app and is built in CI with the newest Xcode. Audio goes to it over a pipe and only text comes back.
   - It reuses our segmenter, partials and gain, so the rest is unchanged.
   - If the SDK or the macOS version is too old, it reports "unavailable" and Whisper stays.
+  - CI: the helper builds against the real macOS 26.5 SDK. The GitHub VM has no SpeechTranscriber model ("not subscribed" even after `AssetInventory.reserve`; VMs report `isAvailable == false`), so actual Apple transcription still needs checking on the owner's Mac. Use the accuracy test card.
 - ✅ "Testar a precisão da transcrição": the user reads a fixed text (~20 s, with meeting jargon) and every on-device engine transcribes the same recording.
   - The card shows the word error rate (WER) and time, and marks the best engine.
   - The recording exists only in memory for the test and is dropped afterwards.
